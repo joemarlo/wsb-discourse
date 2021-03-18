@@ -7,7 +7,7 @@ Final project for NYU Messy Day and Machine Learning class.
 ## Folder structure
 
     .
-    ├── analyses          # Models
+    ├── analyses          # Model fitting, validation, and performance estimates
     ├── data              # Cleaned data and cleaning scripts
     ├── inputs            # Raw input data and scraping scripts
     ├── material          # Class material (check-ins, final writeup, presentation)
