@@ -5,11 +5,11 @@ Text analysis of the internet forum [r/wallstreetbets subreddit](https://www.red
 
 ## Folder structure
 
-.
-├── analyses          # Models
-├── data              # Cleaned data and cleaning scripts
-├── inputs            # Raw input data and scraping scripts
-├── material          # Material for class (check-ins, final writeup, presentation)
-├── docs              # Documentation for the repo (TBD)
-├── LICENSE
-└── README.md
+    .
+    ├── analyses          # Models
+    ├── data              # Cleaned data and cleaning scripts
+    ├── inputs            # Raw input data and scraping scripts
+    ├── material          # Material for class (check-ins, final writeup, presentation)
+    ├── docs              # Documentation for the repo (TBD)
+    ├── LICENSE
+    └── README.md
