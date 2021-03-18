@@ -1,7 +1,5 @@
-inputs/*.csv
-data/*.csv
-.DS_Store
-.DS_store
+
+
 
 # History files
 .Rhistory
