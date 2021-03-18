@@ -8,6 +8,7 @@ Final project for NYU Messy Day and Machine Learning class.
 
     .
     ├── analyses          # Model fitting, validation, and performance estimates
+    │   └── plots         # Plots
     ├── data              # Cleaned data and cleaning scripts
     ├── inputs            # Raw input data and scraping scripts
     ├── material          # Class material (check-ins, final writeup, presentation)
