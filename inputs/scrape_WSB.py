@@ -5,15 +5,11 @@ import datetime as dt
 import os
 import numpy as np
 
-# set working directory
-os.chdir("/home/joemarlo/Dropbox/Data/Projects/stonks-nlp")
-#os.chdir("/Users/joemarlo/Dropbox/Data/Projects/stonks-nlp")
-
 # insert Reddit credentials here
-reddit = praw.Reddit(...)
+# reddit = praw.Reddit(...)
 
 # make sure we're in read-only mode
-reddit.read_only = True
+# reddit.read_only = True
 
 # use PRAW credentials; then PSAW returns the IDs that we can use in PRAW
 api = PushshiftAPI(reddit)
