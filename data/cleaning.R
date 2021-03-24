@@ -1,16 +1,38 @@
 library(tidyverse)
 library(tidytext)
-theme_set(theme_minimal())
+source('analyses/plots/ggplot_settings.R')
 
 scraped_posts <- read_csv('inputs/scraped_posts_test.csv')
+
+# how many posts per day do we have
+scraped_posts %>% 
+  group_by(date = lubridate::date(date)) %>% 
+  tally() %>% 
+  mutate(weekend = lubridate::wday(date) %in% c(1,  7)) %>% 
+  ggplot(aes(x = date, y = n, fill = weekend)) +
+  geom_col() +
+  scale_x_date(date_breaks = '3 days', date_labels = '%m-%d') +
+  scale_y_continuous(labels = scales::comma_format()) +
+  labs(title = 'Count of collected posts',
+       subtitle = paste0('Total collected posts: ', scales::comma_format()(nrow(scraped_posts))),
+       x = NULL,
+       caption = 'Data scraped from reddit')
 
 # combine title and body
 scraped_posts$text <- paste0(scraped_posts$title, " ", scraped_posts$body)
 
-# add hour column
-scraped_posts$hour <- lubridate::hour(scraped_posts$date)
 
+# add flag if post includes an image
+  # one way to do this is to check if the url column ends in .png, .jpg, etc.
+# add flag if post includes emojis
+# keywords to think about -> YOLO, elon, robinhood, gme, amc
+# add flag if post contains a specific stock?
+# remove megathreads?
 
+## for preprocessing steps
+# add flag for holidays
+# add flag for weekend
+# add hour column:  scraped_posts$hour <- lubridate::hour(scraped_posts$date)
 
 
 # scratch work ------------------------------------------------------------

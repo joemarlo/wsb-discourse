@@ -15,8 +15,8 @@ import numpy as np
 api = PushshiftAPI(reddit)
 
 # set range of dates to scrape
-start_day = dt.datetime(2020, 12, 1)
-date_list = [start_day + dt.timedelta(days=x) for x in range(10)]
+start_day = dt.datetime(2021, 1, 10)
+date_list = [start_day + dt.timedelta(days=x) for x in range(31)]
 
 # create empty list to hold submission ids
 all_ids = list()
@@ -47,17 +47,24 @@ for submission in all_ids:
     flairs.append(submission.link_flair_text)
 
 # get submission ids that match the discussion flairs
-DD_ids = list(np.array(all_ids)[np.isin(np.array(flairs), ["DD", "Daily Discussion", "Discussion"])])
+# DD_ids = list(np.array(all_ids)[np.isin(np.array(flairs), ["DD", "Daily Discussion", "Discussion"])])
+DD_ids = all_ids
 
 # define dict of the items we want to pull
 items_dict = { "flair":[],
                 "title":[],
                 "score":[],
-                "id":[], "url":[],
+                "id":[], 
+                "url":[],
                 "comms_num":[],
                 "created":[],
                 "body":[],
-                "date":[]}
+                "date":[],
+                'gilded':[],
+                'total_awards_received':[],
+                'downs':[],
+                'ups':[]
+                }
 
 # pull the data
 for submission in DD_ids:
@@ -70,6 +77,11 @@ for submission in DD_ids:
     items_dict["created"].append(submission.created)
     items_dict["body"].append(submission.selftext)
     items_dict["date"].append(submission.created_utc)
+    items_dict['gilded'].append(submission.gilded)
+    items_dict['total_awards_received'].append(submission.total_awards_received)
+    items_dict['downs'].append(submission.downs)
+    items_dict['ups'].append(submission.ups)
+
 
 # convert dict to dataframe
 items_df = pd.DataFrame(items_dict)
