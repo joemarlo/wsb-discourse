@@ -2,7 +2,7 @@
 
 Text analysis of the internet forum [r/wallstreetbets subreddit](https://www.reddit.com/r/wallstreetbets/) to predict the popularity of posts from the post's text.
 
-Final project for NYU Messy Day and Machine Learning class.
+Final project for NYU Messy Day and Machine Learning class. May contain explicit language.
 
 ## Folder structure
 
