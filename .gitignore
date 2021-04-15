@@ -1,5 +1,5 @@
-#inputs/*.csv
-#data/*.csv
+inputs/*.csv
+data/*.csv
 reddit_credentials.py
 .DS_Store
 .DS_store

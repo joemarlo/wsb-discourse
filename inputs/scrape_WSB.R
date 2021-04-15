@@ -3,7 +3,7 @@ library(tidyverse)
 
 
 # getting posts -----------------------------------------------------------
-# submissions == posts
+# 'submissions' == 'posts'
 
 get_submissions_limited <- function(epoch_start, epoch_end = NULL){
   # return the submissions (ie posts) between epoch_start and epoch_end
@@ -25,7 +25,7 @@ get_submissions_limited <- function(epoch_start, epoch_end = NULL){
   df <- tibble()
   try({
     api_response <- jsonlite::fromJSON(url)
-    cols_to_keep <- c('link_flair_text', 'created_utc', 'id', 'title', 'is_original_content', 
+    cols_to_keep <- c('link_flair_text', 'created_utc', 'id', 'title', 'selftext', 'is_original_content', 
                       'is_video', 'media_only', 'num_comments', 'num_crossposts', 
                       'full_link', 'url', 'is_gallery', 'score', 'up_vote_ratio', 'total_awards_received')
     df <- api_response$data %>% 
@@ -51,14 +51,19 @@ get_submissions <- function(epoch_start, epoch_end){
   
   posts <- get_submissions_limited(epoch_start, epoch_end)
   end_time <- max(posts$created_utc)
+  pb <- txtProgressBar(min = 1, max = 100, style = 3)
   
   while (end_time <= epoch_end) {
     Sys.sleep(0.5) # 200 requests per minute is the limit
     new_posts <- get_submissions_limited(epoch_start = end_time, epoch_end = NULL)
     posts <- bind_rows(posts, new_posts)
     end_time <- max(posts$created_utc)
+    
+    progress <- ceiling((end_time - epoch_start) / (epoch_end - epoch_start) * 100)
+    setTxtProgressBar(pb, progress)
   }
   
+  setTxtProgressBar(pb, 100)
   return(posts)
 }
 # example
@@ -77,10 +82,13 @@ get_comments <- function(submission_ids){
   group_n <- ceiling(ids_n / group_size)
   id_groups <- sort(rep(1:group_n, group_size))
   submission_ids <- suppressWarnings(split(submission_ids, id_groups))
+  
+  # initiate progress bar
+  pb <- txtProgressBar(min = 1, max = 100, style = 3)
 
   # for each group of ids, construct the url, make the request, and convert to df
-  df <- map_dfr(submission_ids, function(submission_id_group){
-    
+  df <- map2_dfr(submission_ids, seq_along(submission_ids), function(submission_id_group, i){
+
     # 200 requests per minute is the limit
     Sys.sleep(0.5)
     
@@ -95,14 +103,24 @@ get_comments <- function(submission_ids){
     # pull the data and convert to dataframe
     df <- tibble()
     try({
+      
+      # make api call
       api_response <- jsonlite::fromJSON(url)
+      
+      # convert to dataframe
       cols_to_keep <- c('created_utc', 'body', 'link_id', 'parent_id', 
                         'score', 'total_awards_received', 'id', 'top_awarded_type')
       df <- api_response$data %>% 
         as_tibble() %>% 
         select(any_of(cols_to_keep))
+      
+      # update progress bar
+      progress <- ceiling((i / length(submission_ids) * 100))
+      setTxtProgressBar(pb, progress)
+      
       return(df)
     })
+    setTxtProgressBar(pb, 100)
     return(df)
   })
   return(df)
@@ -115,10 +133,20 @@ comments$created_utc %>% lubridate::as_datetime() %>% range()
 rm(posts, posts_full_day)
 
 
-# scraping ----------------------------------------------------------------
+# final scraping ----------------------------------------------------------
 
-date_range <- c(as.Date("2020-12-01"), as.Date("2020-12-5"))
+# get posts
+date_range <- c(as.Date("2020-12-01"), as.Date("2021-03-15"))
 epoch_range <- as.numeric(as.POSIXct(date_range))
 posts <- get_submissions(epoch_range[1], epoch_range[2])
-submission_ids <- posts %>% filter(num_comments > 0) %>% pull(id)
-comments <- get_comments(submission_ids)
+
+# get comments
+flairs_to_keep <- c("Discussion", "Daily Discussion", "DD", "Technical Analysis", "YOLO", "News", "Gain")
+submission_ids <- posts %>% 
+  filter(link_flair_text %in% flairs_to_keep,
+         num_comments > 0) %>% 
+  pull(id)
+comments <- get_comments(submission_ids[1:1000])
+
+# write_csv(posts, "inputs/posts_raw.csv")
+# write_csv(comments, "inputs/comments_raw.csv")
