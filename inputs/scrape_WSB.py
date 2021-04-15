@@ -16,7 +16,7 @@ api = PushshiftAPI(reddit)
 
 # set range of dates to scrape
 start_day = dt.datetime(2021, 1, 10)
-date_list = [start_day + dt.timedelta(days=x) for x in range(31)]
+date_list = [start_day + dt.timedelta(days=x) for x in range(1)]
 
 # create empty list to hold submission ids
 all_ids = list()
@@ -49,6 +49,14 @@ for submission in all_ids:
 # get submission ids that match the discussion flairs
 # DD_ids = list(np.array(all_ids)[np.isin(np.array(flairs), ["DD", "Daily Discussion", "Discussion"])])
 DD_ids = all_ids
+
+
+####
+for submission in DD_ids:
+    print(str(submission) + ": " + str(submission.num_comments))
+
+DD_ids[-2].comments[0]
+####
 
 # define dict of the items we want to pull
 items_dict = { "flair":[],
