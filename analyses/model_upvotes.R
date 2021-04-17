@@ -4,16 +4,17 @@ set.seed(44)
 
 ### this is an incomplete sample script to outline the tidymodels fit process ###
 
-clean_posts <- read_csv("data/cleaned_posts.csv")
+# comments <- read_csv("data/comments.csv")
+comments <- read_csv("inputs/comments_raw.csv")
 
 
-# create traintest split --------------------------------------------------
+# create train-test split --------------------------------------------------
 
 # split the data
-# TODO: move this to a separate common script and source it?
-posts_split <- initial_split(clean_posts, prop = 0.7)
-posts_train <- training(posts_split)
-posts_test <- testing(posts_split)
+comments_split <- initial_split(comments, prop = 0.8)
+comments_other <- training(comments_split)
+comments_validate <- validation_split(comments_other, prop = 0.8)
+comments_test <- testing(comments_split)
 
 
 # fit model ---------------------------------------------------------------
@@ -31,6 +32,8 @@ model_rf <- rand_forest() %>%
 model_xgb <- boost_tree() %>% 
   set_engine('xgboost') %>% 
   set_mode('regression')
+# model_lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% 
+#   set_engine("glmnet")
 
 # specify the model formula
 covariates <- c(TBD)

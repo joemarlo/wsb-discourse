@@ -37,12 +37,12 @@ get_submissions_limited <- function(epoch_start, epoch_end = NULL){
 }
 
 # example
-date_start <- as.Date('2021-01-01')
-date_end <- date_start + 1
-epoch_start <- as.numeric(as.POSIXct(date_start))
-epoch_end <- as.numeric(as.POSIXct(date_end))
-posts <- get_submissions_limited(epoch_start, epoch_end) # it limits it to 100 despite documentation allowing 1000
-posts$created_utc %>% lubridate::as_datetime() %>% range()
+# date_start <- as.Date('2021-01-01')
+# date_end <- date_start + 1
+# epoch_start <- as.numeric(as.POSIXct(date_start))
+# epoch_end <- as.numeric(as.POSIXct(date_end))
+# posts <- get_submissions_limited(epoch_start, epoch_end) # it limits it to 100 despite documentation allowing 1000
+# posts$created_utc %>% lubridate::as_datetime() %>% range()
 
 get_submissions <- function(epoch_start, epoch_end){
   # a wrapper around get_submissions_limited
@@ -54,7 +54,7 @@ get_submissions <- function(epoch_start, epoch_end){
   pb <- txtProgressBar(min = 1, max = 100, style = 3)
   
   while (end_time <= epoch_end) {
-    Sys.sleep(0.5) # 200 requests per minute is the limit
+    Sys.sleep(0.4) # 200 requests per minute is the limit
     new_posts <- get_submissions_limited(epoch_start = end_time, epoch_end = NULL)
     posts <- bind_rows(posts, new_posts)
     end_time <- max(posts$created_utc)
@@ -67,8 +67,8 @@ get_submissions <- function(epoch_start, epoch_end){
   return(posts)
 }
 # example
-posts_full_day <- get_submissions(epoch_start, epoch_end)
-posts_full_day$created_utc %>% lubridate::as_datetime() %>% range()
+# posts_full_day <- get_submissions(epoch_start, epoch_end)
+# posts_full_day$created_utc %>% lubridate::as_datetime() %>% range()
 
 
 # getting comments --------------------------------------------------------
@@ -90,7 +90,7 @@ get_comments <- function(submission_ids){
   df <- map2_dfr(submission_ids, seq_along(submission_ids), function(submission_id_group, i){
 
     # 200 requests per minute is the limit
-    Sys.sleep(0.5)
+    Sys.sleep(0.4)
     
     # concat the ids into one string
     ids <- paste0(submission_id_group, collapse = ',')
@@ -103,7 +103,6 @@ get_comments <- function(submission_ids){
     # pull the data and convert to dataframe
     df <- tibble()
     try({
-      
       # make api call
       api_response <- jsonlite::fromJSON(url)
       
@@ -120,17 +119,17 @@ get_comments <- function(submission_ids){
       
       return(df)
     })
-    setTxtProgressBar(pb, 100)
     return(df)
   })
+  setTxtProgressBar(pb, 100)
   return(df)
 }
 
 # example
-submission_ids <- posts_full_day %>% filter(num_comments > 0) %>% pull(id)
-comments <- get_comments(submission_ids) # it does appear to adhere to the 20k limit
-comments$created_utc %>% lubridate::as_datetime() %>% range()
-rm(posts, posts_full_day)
+# submission_ids <- posts_full_day %>% filter(num_comments > 0) %>% pull(id)
+# comments <- get_comments(submission_ids) # it does appear to adhere to the 20k limit
+# comments$created_utc %>% lubridate::as_datetime() %>% range()
+# rm(posts, posts_full_day)
 
 
 # final scraping ----------------------------------------------------------
@@ -138,15 +137,11 @@ rm(posts, posts_full_day)
 # get posts
 date_range <- c(as.Date("2020-12-01"), as.Date("2021-03-15"))
 epoch_range <- as.numeric(as.POSIXct(date_range))
-posts <- get_submissions(epoch_range[1], epoch_range[2])
+posts_raw <- get_submissions(epoch_range[1], epoch_range[2]) # takes ~6 hours
 
 # get comments
-flairs_to_keep <- c("Discussion", "Daily Discussion", "DD", "Technical Analysis", "YOLO", "News", "Gain")
-submission_ids <- posts %>% 
-  filter(link_flair_text %in% flairs_to_keep,
-         num_comments > 0) %>% 
-  pull(id)
-comments <- get_comments(submission_ids[1:1000])
+submission_ids <- posts_raw$id[posts_raw$num_comments > 0]
+comments_raw <- get_comments(submission_ids) # takes >4 hours
 
-# write_csv(posts, "inputs/posts_raw.csv")
-# write_csv(comments, "inputs/comments_raw.csv")
+# write_csv(posts_raw, "inputs/posts_raw.csv")
+# write_csv(comments_raw, "inputs/comments_raw.csv")

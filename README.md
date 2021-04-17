@@ -4,6 +4,13 @@ Text analysis of the internet forum [r/wallstreetbets subreddit](https://www.red
 
 Final project for NYU Messy Data and Machine Learning class. Contains explicit language.
 
+## Status
+
+<br>
+<p align="center">
+<img src="analyses/plots/raw_daily_counts.png" width=80%>
+</p>
+
 ## Folder structure
 
     .
