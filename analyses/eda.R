@@ -170,3 +170,18 @@ comments %>%
   slice_head(n = 100) %>% 
   na.omit() %>% 
   View()
+
+
+# how many comments are we missing ----------------------------------------
+
+comment_tally <- comments %>% 
+  group_by(id = link_id) %>% 
+  tally() %>% 
+  mutate(id = str_sub(id, start = 4))
+posts %>% 
+  select(id, num_comments) %>% 
+  left_join(comment_tally, by = 'id') %>% 
+  replace_na(list(n = 0)) %>% 
+  mutate(diff = num_comments - n) %>% 
+  arrange(desc(diff)) %>% 
+  View
