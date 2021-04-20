@@ -4,8 +4,7 @@ source('analyses/plots/ggplot_settings.R')
 
 posts <- read_csv("inputs/posts_raw.csv")
 comments <- read_csv("inputs/comments_raw.csv")
-# posts <- read_csv('data/posts.csv')
-# comments <- read_csv('data/comments.csv')
+# comments <- read_csv('data/comments_cleaned.csv')
 
 flairs_to_keep <- c("Discussion", "Daily Discussion", "DD", "Technical Analysis", "YOLO", "News", "Gain")
 # posts <- posts_raw %>% 
@@ -80,7 +79,6 @@ posts %>%
   scale_y_continuous(labels = scales::comma_format()) +
   facet_wrap(~name, ncol = 1, scales = 'free_y') +
   labs(title = "Count of weekday posts and comments on r/wallstreetbets",
-       caption = 'Hour in UTC time',
        x = NULL,
        y = NULL)
 # ggsave("analyses/plots/raw_wday_counts.png", height = 6, width = 7)
@@ -95,6 +93,14 @@ posts %>%
   geom_col(position = 'stack') +
   scale_y_continuous(labels = scales::comma_format()) +
   coord_flip()
+
+# GME posts by flair
+posts %>% 
+  mutate(mentions_GME = stringr::str_detect(title, GME)) %>% 
+  group_by(link_flair_text, mentions_GME) %>% 
+  tally() %>% 
+  arrange(n, mentions_GME) %>% 
+  View
 
 # upvotes by time of day
 posts %>% 
@@ -183,5 +189,7 @@ posts %>%
   left_join(comment_tally, by = 'id') %>% 
   replace_na(list(n = 0)) %>% 
   mutate(diff = num_comments - n) %>% 
-  arrange(desc(diff)) %>% 
-  View
+  # arrange(desc(diff)) %>% 
+  # View
+  ggplot(aes(x = diff)) +
+  geom_boxplot()

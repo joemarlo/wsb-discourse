@@ -22,7 +22,3 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
     ├── docs              # Documentation for the repo (TBD)
     ├── LICENSE
     └── README.md
-
-## To-do and notes
-- Should look at tf-idf value by flair?
-- Look at words by position? title vs body; position within title or body
