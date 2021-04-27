@@ -47,59 +47,8 @@ vader.lexicon.update(negative_dict)
 vader.lexicon.update(neutral_dict)
 
 # add custom words words
-WSB_lingo = {
-"tendies": 100,
-"weaklies": -100,
-"bear": -100,
-"bull": 100,
-"buy": 100,
-"dip": -50,
-"falls": -100,
-"retard": 0,
-"retards": 0,
-"autistic": 50,
-"autist": 50,
-"autism": 50,
-"moon": 100,
-"mars": 100,
-"musk": 10,
-"elon": 10,
-"gay bears": -50,
-"put": -100,
-"puts": -100,
-"degen": 0,
-"YOLO": 100,
-"moon": 50,
-"drill": -50,
-"printer": 50,
-"Degenerate": 50,
-"smooth brain": -100,
-"silverback": 25,
-"deep fucking value": 100,
-"DFV": 100,
-"ROARING KITTY": 100,
-"crayons": 0,
-"my wife’s boyfriend": 0,
-"lambo": 50,
-"to the moon": 100,
-"stronger together": 100,
-"this is the way": 25,
-"buy high sell low": -50,
-"hold the line": 50,
-"paper hands": -100,
-"we like the stock": 25,
-"i like the stock": 25,
-"JPOW": 0,
-"money printer go brrr": 25,
-"pump and dump": 0,
-"Ape": 50,
-"💎🙌": 100,
-"🚀": 100,
-"🌈🐻": -50,
-"🦍": 50,
-"💪": 50,
-"Stonk": 0
-}
+WSB_lingo = pd.read_csv('data/wsb_language.csv')
+WSB_lingo = WSB_lingo.set_index('phrase').to_dict()['sentiment']
 
 # add custom words
 vader.lexicon.update(WSB_lingo)
@@ -119,7 +68,8 @@ for score in range(0, len(scores)):
     scores_positive.append(scores[score]["pos"])
 
 
-# add to dataframe
+# create dataframe of ids and scores
+comments_df = comments_df.drop(columns=['comment_text'])
 comments_df[["sentiment_compound"]] = scores_compound
 comments_df[["sentiment_negative"]] = scores_negative
 comments_df[["sentiment_neutral"]] = scores_neutral
