@@ -1,14 +1,15 @@
-# Topic Modeling script
+# Topic Modeling
 
 library(tidyverse)
 library(tidytext)
 library(topicmodels)
+library(ldatuning)
 
 # Read in cleaned comments data:
 data <- read.csv('data/comments_cleaned.csv')
-comments$comment_text <- as.character(comments$comment_text)
-comments$id_comment <- as.character(comments$id_comment)
-comments <- comments %>% select(id_comment, comment_text)
+data$comment_text <- as.character(data$comment_text)
+data$id_comment <- as.character(data$id_comment)
+comments <- data %>% select(id_comment, comment_text)
 
 # Create document-term matrix:
 
@@ -24,7 +25,7 @@ comments <- comments %>% select(id_comment, comment_text)
   # Create document-term matrix:
   tokens_dtm <- tokens_cmt %>% cast_dtm(id_comment, word, count)
   
-# Fitting topic model with arbitrary 5 topics:
+# Fitting topic model with 5 topics:
 comments_lda <- LDA(tokens_dtm, k = 5, control = list(seed = 1234))
   
 # Examine the words in each topic:
@@ -48,11 +49,13 @@ comments_lda <- LDA(tokens_dtm, k = 5, control = list(seed = 1234))
   comments_topic_label <- tidy(comments_lda, matrix = 'gamma')
   comments_topic_label <- comments_topic_label %>% group_by(document) %>% filter(gamma == max(gamma))
   
-
-# Add labels to main data
-  data <- full_join(data, comments_topic_label %>% select(-gamma), by = c('id_comment' = 'document'))
+# Pull labels and write to csv:
+  labels <- data %>% full_join(comments_topic_label %>% select(-gamma), 
+                               by = c('id_comment' = 'document')) %>% 
+    select(id_comment, topic)
   
-
+  write.csv(labels, file = "data/topic.csv")
+  
   
 ### Notes:
   
