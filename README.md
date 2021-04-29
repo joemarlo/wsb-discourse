@@ -19,6 +19,5 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
     ├── data              # Cleaned data and cleaning scripts
     ├── inputs            # Raw input data and scraping scripts
     ├── material          # Class material (check-ins, final writeup, presentation)
-    ├── docs              # Documentation for the repo (TBD)
     ├── LICENSE
     └── README.md
