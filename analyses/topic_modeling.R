@@ -36,12 +36,14 @@ comments_lda <- LDA(tokens_dtm, k = 5, control = list(seed = 1234))
     arrange(topic, -beta)
 
   # Plot top 10 terms in each topic:
-  top_terms %>%
+ plot_5 <- top_terms %>%
     mutate(term = reorder(term, beta)) %>%
     ggplot(aes(term, beta, fill = factor(topic))) +
     geom_bar(alpha = 0.8, stat = "identity", show.legend = FALSE) +
     facet_wrap(~ topic, scales = "free", ncol = 2) +
     coord_flip()
+ 
+ ggsave(plot_5, file = 'analyses/plots/topics_5.png')
   
 
 # Topic Assignments for each comment:
@@ -52,7 +54,7 @@ comments_lda <- LDA(tokens_dtm, k = 5, control = list(seed = 1234))
 # Pull labels and write to csv:
   labels <- data %>% full_join(comments_topic_label %>% select(-gamma), 
                                by = c('id_comment' = 'document')) %>% 
-    select(id_comment, topic)
+    select(id_comment, topic) %>% replace_na(list(topic=6))
   
   write.csv(labels, file = "data/topic.csv")
   
