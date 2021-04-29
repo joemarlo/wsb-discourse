@@ -54,3 +54,6 @@ scale_color_discrete <- function(...) {
 scale_fill_discrete <- function(...) {
   scale_fill_viridis(..., discrete = TRUE)
 }
+
+# create special notin function
+`%notin%` <- negate(`%in%`)

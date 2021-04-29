@@ -1,9 +1,10 @@
 library(tidyverse)
 library(tidytext)
+source("analyses/plots/ggplot_settings.R")
 
 comments <- read_csv("data/comments_cleaned.csv")
 sentiment <- read_csv("data/sentiment.csv")
-topics <- read_csv('data/topics.csv')
+topics <- read_csv('data/topic.csv')
 
 # join the data
 comments <- comments %>% 
@@ -18,7 +19,19 @@ comments <- na.omit(comments)
 comments <- select(comments, -total_awards_received)
 
 
+# holiday -----------------------------------------------------------------
+
+# add a column dummy coding is the market is open
+market_holidays <- c('2020-12-25', '2021-01-01', '2021-01-18', '2021-02-15', '2021-04-01', '2021-05-31')
+market_holidays <- as.Date(market_holidays)
+comments$is_market_day <- (comments$date %notin% market_holidays) & (comments$wday %notin% c("Sat", "Sun"))
+
+
 # identify key phrases ----------------------------------------------------
+
+# TODO: revisit ones emojis are fixed
+# TODO: added stemmed versions to the key phrases list
+# TODO: change these to counts
 
 # read in key phrases
 key_phrases <- read_csv("data/wsb_language.csv")
@@ -26,25 +39,24 @@ key_phrases <- read_csv("data/wsb_language.csv")
 # determine which comments contain which phrases
 comments <- comments %>% 
   rowwise() %>% 
-  mutate(match = list(str_match_all(comment_text, regex(key_phrases$phrase, case = FALSE)))) %>% 
+  mutate(match = list(str_detect(comment_text, regex(key_phrases$phrase, case = FALSE)))) %>% 
   ungroup()
 
 # add dummy code if text contains this phrase
-comments <- comments %>% 
+comments <- comments %>%
   mutate(match = map(match, function(x){
     names(x) <- key_phrases$phrase
     return(x)
   })) %>% 
   unnest_wider(col = match)
   
-# convert values to 0:1
 
+# wish list ---------------------------------------------------------------
 
-
-# bag of words ------------------------------------------------------------
-
+# GME stock price
+# identify stocks
 
 
 
 # write out
-write_csv("data/comments_prepped.csv")
+# write_csv(comments, "data/comments_prepped.csv")

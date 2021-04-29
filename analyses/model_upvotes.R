@@ -1,29 +1,140 @@
 library(tidyverse)
 library(tidymodels)
+library(tidytext)
 set.seed(44)
 
+# read in the processed data
 comments <- read_csv("data/comments_prepped.csv")
 
+
+# create document term matrix ---------------------------------------------
+
+# First, unnest comments to tokens and remove stop words:
+comments_tokenized <- comments %>% 
+  select(id_comment, comment_text) %>% 
+  unnest_tokens(word, comment_text) %>% 
+  anti_join(stop_words, by = 'word')
+
+# Count the occurrences of each word in each document (comment):
+comments_counts <- comments_tokenized %>% 
+  group_by(id_comment, word) %>% 
+  summarise(count = n(),
+            .groups = 'drop')
+
+# create bag-of-words matrix but remove words with less than 5000 total mentions
+comments_dtm <- comments_counts %>% 
+  group_by(word) %>% 
+  mutate(count_overall = sum(count)) %>% 
+  ungroup() %>% 
+  filter(count_overall >= 5000) %>% 
+  select(-count_overall) %>% 
+  pivot_wider(values_from = count, names_from = word)
+
+# add back to original dataframe
+comments <- comments %>% 
+  left_join(comments_dtm, by = 'id_comment', suffix = c("_remove_", "")) %>% 
+  select(-ends_with("_remove_"))
+
+# replace NAs with zeros
+replacement_dict <- colnames(comments_dtm)[-1]
+replacement_dict <- rep(0, length(replacement_dict)) %>% 
+  as.list() %>% 
+  setNames(replacement_dict)
+comments <- replace_na(comments, replacement_dict)
+
+# memory management
+rm(comments_tokenized, comments_counts, comments_dtm, replacement_dict)
+
+
+# clean up dataframe ------------------------------------------------------
+
+# drop comment_text column
+comments <- comments %>% 
+  select(-comment_text)
 
 
 # create train-test split --------------------------------------------------
 
-# split the data into train, validate, test
-split_ratios <- c(0.7, 0.15, 0.15)
-indices_train <- sample(c(TRUE, FALSE), size = nrow(comments), replace = TRUE, 
-                        prob = c(split_ratios[1], 1-split_ratios[1]))
-comments_train <- comments[indices_train,]
-indices_validate <- sample(c(TRUE, FALSE), size = sum(!indices_train), replace = TRUE,
-                           prob = c(split_ratios[2], split_ratios[3]))
-comments_validate <- comments[!indices_train,][indices_validate,]
-comments_test <- comments[!indices_train,][!indices_validate,]
+# set initial splits for train, validate test
+split_ratios <- c(0.6, 0.2, 0.2)
 
+split_data <- function(tbl, splits){
+  # function creates train, test, validate sets for a given dataset
+  
+  # create train dataset
+  indices_train <- sample(c(TRUE, FALSE), 
+                          size = nrow(tbl), 
+                          replace = TRUE, 
+                          prob = c(splits[1], 1-splits[1]))
+  train_df <- tbl[indices_train,]
+  train_df$type <- 'train'
+  
+  # create validate dataset
+  indices_validate <- sample(c(TRUE, FALSE), 
+                             size = sum(!indices_train), 
+                             replace = TRUE,
+                             prob = c(split_ratios[2], split_ratios[3]))
+  validate_df <- tbl[!indices_train,][indices_validate,]
+  validate_df$type <- 'validate'
+  
+  # create test dataset
+  test_df <- tbl[!indices_train,][!indices_validate,]
+  test_df$type <- 'test'
+  
+  return(bind_rows(train_df, validate_df, test_df))
+}
+
+# stratify by month
+comments_split <- comments %>% 
+  group_by(month = lubridate::month(datetime)) %>% 
+  group_split() %>% 
+  map(function(tbl) split_data(tbl, split_ratios)) %>% 
+  bind_rows()
+
+# verify it worked
+comments_split %>% 
+  group_by(month, type) %>% 
+  tally() %>% 
+  mutate(prop = n / sum(n))
+table(comments_split$type) / sum(table(comments_split$type))
+
+# create final datasets
+comments_train <- filter(comments_split, type == 'train')
+comments_validate <- filter(comments_split, type == 'validate')
+comments_test <- filter(comments_split, type == 'test')
+
+# drop unneccessary columns
+cols_to_drop <- c('datetime', 'type', 'id_post', 'id_comment', 'id_parent')
+comments_train <- select(comments_train, -any_of(cols_to_drop))
+comments_validate <- select(comments_validate, -any_of(cols_to_drop))
+comments_test <- select(comments_test, -any_of(cols_to_drop))
+
+# memory management
+rm(cols_to_drop)
 
 
 # linear regression -------------------------------------------------------
 
+model_lm <- lm(score ~ ., data = comments_train)
+broom::tidy(model_lm)
 
 
+# knn ---------------------------------------------------------------------
+
+# dummycode and scale the data
+train_knn <- comments_train %>% 
+  select(-date, -score) %>% 
+  fastDummies::dummy_cols(c('hour', 'wday', 'flair', 'topic'),
+                          remove_first_dummy = TRUE, remove_selected_columns = TRUE) %>% 
+  mutate(across(everything(), ~scale(.x)[,1]))
+
+# TODO remove NAs, grid search
+# fit knn via cross validation  
+model_knn <- FNN::knn.reg(
+    train = train_knn, 
+    y = comments_train$score,
+    k = 5
+)
 
 
 # decision tree -----------------------------------------------------------
@@ -45,85 +156,13 @@ comments_test <- comments[!indices_train,][!indices_validate,]
 
 
 
-# split the data
-comments_split <- initial_split(comments, prop = 0.8)
-comments_other <- training(comments_split)
-comments_validate <- validation_split(comments_other, prop = 0.8)
-comments_test <- testing(comments_split)
 
 
-# fit model ---------------------------------------------------------------
-
-# specify the model types
-model_linear <- linear_reg() %>% 
-  set_engine('lm') %>% 
-  set_mode('regression')
-model_linear_bayesian <- linear_reg() %>% 
-  set_engine('stan') %>% 
-  set_mode('regression') 
-model_rf <- rand_forest() %>% 
-  set_mode('regression') %>% 
-  set_engine('ranger')
-model_xgb <- boost_tree() %>% 
-  set_engine('xgboost') %>% 
-  set_mode('regression')
-# model_lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% 
-#   set_engine("glmnet")
-
-# specify the model formula
-covariates <- c(TBD)
-model_formula <- reformulate(
-  termlabels = covariates,
-  response = upvotes,
-  intercept = TRUE
-)
-
-# fit the model
-model_linear_fit <- model_linear %>% 
-  fit(model_formula,
-      data = posts_train)
-
-# view parameters
-tidy(model_linear_fit)
+# comparison --------------------------------------------------------------
 
 # make predictions
-posts_test$y_hat <- predict(model_linear_fit, new_data = posts_test)
+y_hat_lm <- predict(model_lm, newdata = comments_validate)
 
-
-# evaluate ----------------------------------------------------------------
-
-model_linear_last_fit <- model_linear %>% 
-  last_fit(model_formula, split = posts_split)
-model_linear_last_fit %>% collect_predictions()
-model_linear_last_fit %>% collect_metrics()
-
-
-### for classifiers
-metrics_upvotes <- metric_set(accuracy, sensitivity, specificity)
-metrics_upvotes(posts_test, truth = TBD, estimate = y_hat)
-model_linear_results <- model_linear_last_fit %>% collect_predictions()
-model_linear_results %>% roc_curve(truth = TBD, .pred_yes) %>% autoplot()
-roc_auc(model_linear_results,
-        truth = TBD, 
-        .pred_yes)
-conf_mat(model_linear_results,
-         truth = TBD,
-         estimate = .pred_class) %>% 
-  # autoplot(type = 'heatmap')
-  autoplot(type = 'mosaic')
-
-
-## flow
-# train the model
-logistic_fit <- logistic_model %>% 
-  last_fit(model_formula, split = posts_split)
-
-# collect metrics
-logistic_fit %>% 
-  collect_metrics()
-
-# plot ROC curve
-logistic_fit %>% 
-  collect_predictions() %>% 
-  roc_curve(truth = TBD, .pred_yes) %>% 
-  autoplot()
+# RMSE
+RMSE <- function(y, y_hat) sqrt(mean((y_hat - y)^2))
+RMSE(comments_validate$score, y_hat_lm)
