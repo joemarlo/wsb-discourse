@@ -1,6 +1,8 @@
 library(tidyverse)
 library(tidymodels)
 library(tidytext)
+source('analyses/helpers.R')
+source('analyses/plots/ggplot_settings.R')
 set.seed(44)
 
 # read in the processed data
@@ -98,13 +100,17 @@ comments_split %>%
   mutate(prop = n / sum(n))
 table(comments_split$type) / sum(table(comments_split$type))
 
+# replace emoji in column names
+colnames(comments_split)[54:58] <- c('diamond_hands_emoji', "rocket_emoji", "gay_bear_emoji", "ape_emoji", "strong_emoji")
+colnames(comments_split) <- janitor::make_clean_names(colnames(comments_split))
+
 # create final datasets
 comments_train <- filter(comments_split, type == 'train')
 comments_validate <- filter(comments_split, type == 'validate')
 comments_test <- filter(comments_split, type == 'test')
 
 # drop unneccessary columns
-cols_to_drop <- c('datetime', 'type', 'id_post', 'id_comment', 'id_parent')
+cols_to_drop <- c('date', 'datetime', 'type', 'id_post', 'id_comment', 'id_parent')
 comments_train <- select(comments_train, -any_of(cols_to_drop))
 comments_validate <- select(comments_validate, -any_of(cols_to_drop))
 comments_test <- select(comments_test, -any_of(cols_to_drop))
@@ -119,11 +125,16 @@ model_lm <- lm(score ~ ., data = comments_train)
 broom::tidy(model_lm)
 
 
+# lasso -------------------------------------------------------------------
+
+# glmnet
+
+
 # knn ---------------------------------------------------------------------
 
 # dummycode and scale the data
 train_knn <- comments_train %>% 
-  select(-date, -score) %>% 
+  select(-score) %>% 
   fastDummies::dummy_cols(c('hour', 'wday', 'flair', 'topic'),
                           remove_first_dummy = TRUE, remove_selected_columns = TRUE) %>% 
   mutate(across(everything(), ~scale(.x)[,1]))
@@ -131,25 +142,41 @@ train_knn <- comments_train %>%
 # TODO remove NAs, grid search
 # fit knn via cross validation  
 model_knn <- FNN::knn.reg(
-    train = train_knn, 
-    y = comments_train$score,
-    k = 5
+  train = train_knn, 
+  y = comments_train$score,
+  k = 5
 )
 
 
 # decision tree -----------------------------------------------------------
 
-
+model_tree <- rpart::rpart(
+  score ~ .,
+  data = comments_train
+)
 
 
 # random forest -----------------------------------------------------------
 
+model_rf <- ranger::ranger(
+  score ~ .,
+  data = comments_train,
+  num.trees = 500,
+  respect.unordered.factors = TRUE,
+  num.threads = 4L
+)
 
 
+# boosting ----------------------------------------------------------------
 
-# xgboost -----------------------------------------------------------------
-
-
+# TODO: dummy code
+model_xgb <- xgboost::xgboost(
+  data = select(comments_train, -score),
+  label = comments_train$score,
+  nthread = 4L,
+  nrounds = 2,
+  objective = 'regression'
+)
 
 
 # RNN ---------------------------------------------------------------------
@@ -162,7 +189,21 @@ model_knn <- FNN::knn.reg(
 
 # make predictions
 y_hat_lm <- predict(model_lm, newdata = comments_validate)
+y_hat_tree <- predict(model_tree, newdata = comments_validate)
+y_hat_rf <- predict(model_rf, data = comments_validate)$predictions
 
 # RMSE
-RMSE <- function(y, y_hat) sqrt(mean((y_hat - y)^2))
-RMSE(comments_validate$score, y_hat_lm)
+y_hats <- list(y_hat_lm, y_hat_tree, y_hat_rf)
+y_names <- c("Linear model", "Decision tree", "Random forest")
+map(y_hats, function(y_hat) RMSE(comments_validate$score, y_hat)) %>% 
+  setNames(y_names) %>% 
+  enframe() %>% 
+  unnest(value) %>% 
+  ggplot(aes(x = value, y = reorder(name, value))) +
+  geom_col() +
+  geom_text(aes(label = round(value, 2)),
+            hjust = 1.1, color = 'white', fontface = 'bold') +
+  labs(title = "RMSE by model",
+       subtitle = 'Lower is better',
+       x = "RMSE",
+       y = NULL)
