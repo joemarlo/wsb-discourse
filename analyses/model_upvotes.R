@@ -2,13 +2,48 @@ library(tidyverse)
 library(tidymodels)
 set.seed(44)
 
-### this is an incomplete sample script to outline the tidymodels fit process ###
+comments <- read_csv("data/comments_prepped.csv")
 
-# comments <- read_csv("data/comments.csv")
-comments <- read_csv("inputs/comments_raw.csv")
 
 
 # create train-test split --------------------------------------------------
+
+# split the data into train, validate, test
+split_ratios <- c(0.7, 0.15, 0.15)
+indices_train <- sample(c(TRUE, FALSE), size = nrow(comments), replace = TRUE, 
+                        prob = c(split_ratios[1], 1-split_ratios[1]))
+comments_train <- comments[indices_train,]
+indices_validate <- sample(c(TRUE, FALSE), size = sum(!indices_train), replace = TRUE,
+                           prob = c(split_ratios[2], split_ratios[3]))
+comments_validate <- comments[!indices_train,][indices_validate,]
+comments_test <- comments[!indices_train,][!indices_validate,]
+
+
+
+# linear regression -------------------------------------------------------
+
+
+
+
+
+# decision tree -----------------------------------------------------------
+
+
+
+
+# random forest -----------------------------------------------------------
+
+
+
+
+# xgboost -----------------------------------------------------------------
+
+
+
+
+# RNN ---------------------------------------------------------------------
+
+
 
 # split the data
 comments_split <- initial_split(comments, prop = 0.8)

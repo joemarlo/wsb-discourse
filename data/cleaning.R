@@ -26,7 +26,7 @@ comments_cleaned <- comments %>%
 # remove deleted or removed comments
 comments_cleaned <- comments_cleaned[!(comments_cleaned$body %in% c('[removed]', '[deleted]')),]
 
-# remove bots
+# remove obvious bots
 comments_cleaned <- comments_cleaned[!str_detect(comments_cleaned$body, 'I am a bot'),]
 
 # add datetime, date, hour, and weekday
