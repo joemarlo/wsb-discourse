@@ -1,61 +1,14 @@
 library(tidyverse)
 library(tidymodels)
-library(tidytext)
 source('analyses/helpers.R')
 source('analyses/plots/ggplot_settings.R')
 set.seed(44)
 
 # read in the processed data
-comments <- read_csv("data/comments_prepped.csv")
+comments <- read_csv("data/comments_selected.csv")
 
 
-# create document term matrix ---------------------------------------------
-
-# First, unnest comments to tokens and remove stop words:
-comments_tokenized <- comments %>% 
-  select(id_comment, comment_text) %>% 
-  unnest_tokens(word, comment_text) %>% 
-  anti_join(stop_words, by = 'word')
-
-# Count the occurrences of each word in each document (comment):
-comments_counts <- comments_tokenized %>% 
-  group_by(id_comment, word) %>% 
-  summarise(count = n(),
-            .groups = 'drop')
-
-# create bag-of-words matrix but remove words with less than 5000 total mentions
-comments_dtm <- comments_counts %>% 
-  group_by(word) %>% 
-  mutate(count_overall = sum(count)) %>% 
-  ungroup() %>% 
-  filter(count_overall >= 5000) %>% 
-  select(-count_overall) %>% 
-  pivot_wider(values_from = count, names_from = word)
-
-# add back to original dataframe
-comments <- comments %>% 
-  left_join(comments_dtm, by = 'id_comment', suffix = c("_remove_", "")) %>% 
-  select(-ends_with("_remove_"))
-
-# replace NAs with zeros
-replacement_dict <- colnames(comments_dtm)[-1]
-replacement_dict <- rep(0, length(replacement_dict)) %>% 
-  as.list() %>% 
-  setNames(replacement_dict)
-comments <- replace_na(comments, replacement_dict)
-
-# memory management
-rm(comments_tokenized, comments_counts, comments_dtm, replacement_dict)
-
-
-# clean up dataframe ------------------------------------------------------
-
-# drop comment_text column
-comments <- comments %>% 
-  select(-comment_text)
-
-
-# create train-test split --------------------------------------------------
+# create stratified train-test split --------------------------------------
 
 # set initial splits for train, validate test
 split_ratios <- c(0.6, 0.2, 0.2)
@@ -86,9 +39,9 @@ split_data <- function(tbl, splits){
   return(bind_rows(train_df, validate_df, test_df))
 }
 
-# stratify by month
+# create train test split but stratify it by month
 comments_split <- comments %>% 
-  group_by(month = lubridate::month(datetime)) %>% 
+  group_by(month) %>% 
   group_split() %>% 
   map(function(tbl) split_data(tbl, split_ratios)) %>% 
   bind_rows()
@@ -101,22 +54,13 @@ comments_split %>%
 table(comments_split$type) / sum(table(comments_split$type))
 
 # replace emoji in column names
-colnames(comments_split)[54:58] <- c('diamond_hands_emoji', "rocket_emoji", "gay_bear_emoji", "ape_emoji", "strong_emoji")
+colnames(comments_split)[16:17] <- c('diamond_hands_emoji', "strong_emoji")
 colnames(comments_split) <- janitor::make_clean_names(colnames(comments_split))
 
 # create final datasets
-comments_train <- filter(comments_split, type == 'train')
-comments_validate <- filter(comments_split, type == 'validate')
-comments_test <- filter(comments_split, type == 'test')
-
-# drop unneccessary columns
-cols_to_drop <- c('date', 'datetime', 'type', 'id_post', 'id_comment', 'id_parent')
-comments_train <- select(comments_train, -any_of(cols_to_drop))
-comments_validate <- select(comments_validate, -any_of(cols_to_drop))
-comments_test <- select(comments_test, -any_of(cols_to_drop))
-
-# memory management
-rm(cols_to_drop)
+comments_train <- filter(comments_split, type == 'train') %>% select(-type)
+comments_validate <- filter(comments_split, type == 'validate') %>% select(-type)
+comments_test <- filter(comments_split, type == 'test') %>% select(-type)
 
 
 # linear regression -------------------------------------------------------
@@ -158,13 +102,25 @@ model_tree <- rpart::rpart(
 
 # random forest -----------------------------------------------------------
 
+# fit 
 model_rf <- ranger::ranger(
   score ~ .,
   data = comments_train,
   num.trees = 500,
   respect.unordered.factors = TRUE,
-  num.threads = 4L
+  num.threads = 4L,
+  importance = 'impurity'
 )
+
+# importance
+model_rf$variable.importance %>% 
+  enframe() %>% 
+  slice_max(order_by = value, n = 20) %>% 
+  ggplot(aes(x = value, y = reorder(name, value))) +
+  geom_col() +
+  labs(title = "Variable importance from random forest",
+       x = "Importance",
+       y = NULL)
 
 
 # boosting ----------------------------------------------------------------

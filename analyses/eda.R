@@ -19,6 +19,10 @@ comments$datetime <- lubridate::as_datetime(comments$created_utc)
 comments$date <- as.Date(comments$datetime)
 comments$hour <- lubridate::hour(comments$datetime)
 comments$wday <- lubridate::wday(comments$datetime, label = TRUE)
+comments$mday <- lubridate::day(comments$datetime)
+comments$month <- lubridate::month(comments$datetime, label = TRUE)
+comments$month <- factor(comments$month, levels = c("Dec", "Jan", "Feb", "Mar", "Apr"))
+comments$week <- lubridate::week(comments$datetime)
 
 
 # frequencies -------------------------------------------------------------
@@ -118,6 +122,20 @@ posts %>%
   scale_y_log10() +
   facet_wrap(~type, ncol = 1, scales = 'free_y')
 
+# comments over time
+comments %>% 
+  # filter(month %in% c("Dec", "Jan", "Feb")) %>% 
+  group_by(month, mday) %>% 
+  tally() %>% 
+  ggplot(aes(x = mday, y = month, fill = n)) +
+  geom_tile() +
+  scale_x_continuous(breaks = c(1, seq(5, 25, by = 5), 31)) +
+  scale_fill_continuous(labels = scales::comma_format()) +
+  labs(title = "Count of comments over time",
+       x = "Day of month",
+       y = NULL,
+       fill = NULL)
+
 
 # top words ---------------------------------------------------------------
 
@@ -147,7 +165,7 @@ long_tokens %>%
   ggplot(aes(x = n, y = score)) +
   geom_point(alpha = 0.1) +
   labs(title = "Comment's length vs score",
-       subtitle = "Random sample of 15k comments",
+       subtitle = "Random sample of 50k comments",
        x = "n words",
        y = 'Score')
 

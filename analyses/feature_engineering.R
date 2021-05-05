@@ -27,11 +27,17 @@ market_holidays <- as.Date(market_holidays)
 comments$is_market_day <- (comments$date %notin% market_holidays) & (comments$wday %notin% c("Sat", "Sun"))
 
 
+# add comment hierarchy flag ----------------------------------------------
+
+# add flag if comment is top level or not
+# t3 prefix indicates if comment is top level
+comments$is_direct_comment <- stringr::str_sub(comments$id_parent, 0, 2) == 't3'
+
+
 # identify key phrases ----------------------------------------------------
 
 # TODO: revisit ones emojis are fixed
 # TODO: added stemmed versions to the key phrases list
-# TODO: change these to counts
 
 # read in key phrases
 key_phrases <- read_csv("data/wsb_language.csv")
@@ -39,7 +45,7 @@ key_phrases <- read_csv("data/wsb_language.csv")
 # determine which comments contain which phrases
 comments <- comments %>% 
   rowwise() %>% 
-  mutate(match = list(str_detect(comment_text, regex(key_phrases$phrase, case = FALSE)))) %>% 
+  mutate(match = list(str_count(comment_text, regex(key_phrases$phrase, case = FALSE)))) %>% 
   ungroup()
 
 # add dummy code if text contains this phrase
