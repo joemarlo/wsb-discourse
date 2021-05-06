@@ -53,9 +53,8 @@ comments_split %>%
   mutate(prop = n / sum(n))
 table(comments_split$type) / sum(table(comments_split$type))
 
-# replace emoji in column names
-colnames(comments_split)[16:17] <- c('diamond_hands_emoji', "strong_emoji")
-colnames(comments_split) <- janitor::make_clean_names(colnames(comments_split))
+# clean up column names
+comments_split <- janitor::clean_names(comments_split)
 
 # create final datasets
 comments_train <- filter(comments_split, type == 'train') %>% select(-type)
@@ -66,7 +65,7 @@ comments_test <- filter(comments_split, type == 'test') %>% select(-type)
 # linear regression -------------------------------------------------------
 
 model_lm <- lm(score ~ ., data = comments_train)
-broom::tidy(model_lm)
+# broom::tidy(model_lm) %>% View
 
 
 # lasso -------------------------------------------------------------------
@@ -76,24 +75,38 @@ broom::tidy(model_lm)
 
 # knn ---------------------------------------------------------------------
 
-# dummycode and scale the data
+# grid search for optimal k value based on subset
+control_knn <- caret::trainControl(method = "repeatedcv", repeats = 3)
+tune_knn <- caret::train(
+  score ~ .,
+  data = slice_sample(comments_train, n = 1000),
+  method = "knn",
+  trControl = control_knn,
+  preProcess = c("center", "scale"),
+  tuneLength = 20
+)
+plot(tune_knn)
+
+# scale the data
 train_knn <- comments_train %>% 
   select(-score) %>% 
-  fastDummies::dummy_cols(c('hour', 'wday', 'flair', 'topic'),
-                          remove_first_dummy = TRUE, remove_selected_columns = TRUE) %>% 
+  mutate(across(everything(), ~scale(.x)[,1]))
+validate_knn <- comments_validate %>% 
+  select(-score) %>% 
   mutate(across(everything(), ~scale(.x)[,1]))
 
-# TODO remove NAs, grid search
-# fit knn via cross validation  
+# fit final knn model 
 model_knn <- FNN::knn.reg(
   train = train_knn, 
+  test = validate_knn,
   y = comments_train$score,
-  k = 5
+  k = 20
 )
 
 
 # decision tree -----------------------------------------------------------
 
+# fit model
 model_tree <- rpart::rpart(
   score ~ .,
   data = comments_train
@@ -102,25 +115,45 @@ model_tree <- rpart::rpart(
 
 # random forest -----------------------------------------------------------
 
-# fit 
+# grid search for mtry
+grid_rf <- expand.grid(mtry = c(5, 10, 12, 15, 20),
+                       splitrule = 'variance',
+                       min.node.size = 5)
+control_rf <- caret::trainControl(method = "CV",
+                                  number = 5,
+                                  verboseIter = TRUE)
+tune_rf <- caret::train(
+  score ~ .,
+  data = comments_train,
+  method = 'ranger',
+  num.trees = 100,
+  tuneGrid = grid_rf,
+  trControl = control_rf
+)
+plot(tune_rf$results$mtry, tune_rf$results$RMSE)
+
+# fit final model
 model_rf <- ranger::ranger(
   score ~ .,
   data = comments_train,
-  num.trees = 500,
+  num.trees = 1000,
   respect.unordered.factors = TRUE,
   num.threads = 4L,
-  importance = 'impurity'
+  importance = 'impurity',
+  mtry = 5
 )
 
-# importance
+# variable importance
 model_rf$variable.importance %>% 
   enframe() %>% 
   slice_max(order_by = value, n = 20) %>% 
   ggplot(aes(x = value, y = reorder(name, value))) +
   geom_col() +
+  scale_x_continuous(labels = NULL) +
   labs(title = "Variable importance from random forest",
        x = "Importance",
        y = NULL)
+# ggsave("analyses/plots/rf_importance", width = 6, height = 8)
 
 
 # boosting ----------------------------------------------------------------
@@ -145,12 +178,13 @@ model_xgb <- xgboost::xgboost(
 
 # make predictions
 y_hat_lm <- predict(model_lm, newdata = comments_validate)
+y_hat_knn <- model_knn$pred
 y_hat_tree <- predict(model_tree, newdata = comments_validate)
 y_hat_rf <- predict(model_rf, data = comments_validate)$predictions
 
 # RMSE
-y_hats <- list(y_hat_lm, y_hat_tree, y_hat_rf)
-y_names <- c("Linear model", "Decision tree", "Random forest")
+y_hats <- list(y_hat_lm, y_hat_knn, y_hat_tree, y_hat_rf)
+y_names <- c("Linear model", "KNN", "Decision tree", "Random forest")
 map(y_hats, function(y_hat) RMSE(comments_validate$score, y_hat)) %>% 
   setNames(y_names) %>% 
   enframe() %>% 
@@ -163,3 +197,10 @@ map(y_hats, function(y_hat) RMSE(comments_validate$score, y_hat)) %>%
        subtitle = 'Lower is better',
        x = "RMSE",
        y = NULL)
+# ggsave("analyses/plots/RMSEs.png", width = 6, height = 5)
+
+
+
+# final model -------------------------------------------------------------
+
+

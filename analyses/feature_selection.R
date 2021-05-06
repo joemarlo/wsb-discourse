@@ -52,7 +52,7 @@ rm(comments_tokenized, comments_counts, comments_dtm, replacement_dict)
 # add month column
 comments$month <- lubridate::month(comments$datetime)
 
-# drop unneccessary columns
+# drop unnecessary columns
 cols_to_drop <- c('comment_text', 'date', 'datetime', 'type', 'id_post', 'id_comment', 'id_parent')
 comments <- select(comments, -any_of(cols_to_drop))
 rm(cols_to_drop)
@@ -74,14 +74,14 @@ train_lasso <- sample(1:nrow(comments), nrow(comments)/2)
 test_lasso_x <- -train_lasso
 test_lasso_y <- y_var_lasso[test_lasso_x]
 
-# cross validate for find best lambda
+# cross validate to find optimal lambda
 cv_output <- glmnet::cv.glmnet(x_vars_lasso[train_lasso,], 
                                y_var_lasso[train_lasso],
                                alpha = 1, 
                                lambda = lambda_seq, 
                                nfolds = 5)
 
-# retrieve best lambda
+# retrieve optimal lambda
 lambda_optimal <- cv_output$lambda.min
 
 # build model with optimal lambda

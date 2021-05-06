@@ -1,7 +1,9 @@
 library(tidyverse)
 library(tidytext)
+source('analyses/helpers.R')
 source("analyses/plots/ggplot_settings.R")
 
+# read in all the data
 comments <- read_csv("data/comments_cleaned.csv")
 sentiment <- read_csv("data/sentiment.csv")
 topics <- read_csv('data/topic.csv')
@@ -34,10 +36,72 @@ comments$is_market_day <- (comments$date %notin% market_holidays) & (comments$wd
 comments$is_direct_comment <- stringr::str_sub(comments$id_parent, 0, 2) == 't3'
 
 
-# identify key phrases ----------------------------------------------------
+# identify emojis ---------------------------------------------------------
+# takes ~5min
 
-# TODO: revisit ones emojis are fixed
-# TODO: added stemmed versions to the key phrases list
+# extract all emojis and place into a list within the column
+comments$emoji_ascii <- str_extract_all(comments$comment_text,"[^[:ascii:]]")
+
+# remove non-emoji characters we accidentally caught like apostrophes
+#   and convert to plain text
+comments <- comments %>% 
+  mutate(emoji_cleaned = map(emoji_ascii, function(emoji){
+    
+    # remove unwanted characters like apostrophes
+    char_to_remove <- c("“", "’", "”", "”", "”", "—")
+    emoji_list <- setdiff(emoji, char_to_remove)
+    
+    # convert to plain text
+    emoji_list <- textclean::replace_emoji(emoji_list)
+    
+    # remove emoji's that could not be translated
+    emoji_list <- emoji_list[!str_detect(emoji_list, "<")]
+    
+    return(emoji_list)
+  }))
+
+# create list of top emojis
+top_emojis <- comments$emoji_cleaned %>% 
+  unlist() %>% 
+  table() %>% 
+  sort(decreasing = TRUE) %>% 
+  .[1:20] %>% 
+  enframe()
+
+# add columns if comment contains an emoji or a specific top emoji
+comments <- comments %>% 
+  rowwise() %>% 
+  mutate(contains_emoji = isTRUE(length(emoji_cleaned) > 0),
+         emoji = list(str_detect(paste0(emoji_cleaned, collapse = ""), top_emojis$name))) %>% 
+  ungroup()
+
+# clean up emoji names
+top_emojis$name <- janitor::make_clean_names(top_emojis$name)
+top_emojis$name <- paste0("emoji_", top_emojis$name)
+
+# add dummy code if text contains this phrase
+comments <- comments %>%
+  mutate(emoji = map(emoji, function(x){
+    names(x) <- top_emojis$name
+    return(x)
+  })) %>% 
+  unnest_wider(col = emoji)
+
+# remove unnecessary columns
+comments <- select(comments, -emoji_cleaned, -emoji_ascii)
+
+# write out top emojis
+write_csv(top_emojis, "data/top_emojis.csv")
+rm(top_emojis)
+
+
+# identify numbers --------------------------------------------------------
+
+# add new column denoting if comment contains a digit
+comments$contains_number <- str_detect(comments$comment_text, "\\d")
+
+
+# identify key phrases ----------------------------------------------------
 
 # read in key phrases
 key_phrases <- read_csv("data/wsb_language.csv")
@@ -48,6 +112,12 @@ comments <- comments %>%
   mutate(match = list(str_count(comment_text, regex(key_phrases$phrase, case = FALSE)))) %>% 
   ungroup()
 
+# clean up phrases
+key_phrases$phrase <- textclean::replace_emoji(key_phrases$phrase)
+key_phrases$phrase[key_phrases$phrase == "<f0><9f><a6><8d>"] <- "ape_emoji"
+key_phrases$phrase <- janitor::make_clean_names(key_phrases$phrase)
+key_phrases$phrase <- paste0("keyphrase_", key_phrases$phrase)
+
 # add dummy code if text contains this phrase
 comments <- comments %>%
   mutate(match = map(match, function(x){
@@ -55,7 +125,13 @@ comments <- comments %>%
     return(x)
   })) %>% 
   unnest_wider(col = match)
-  
+rm(key_phrases)
+
+# contains gamestop -------------------------------------------------------
+
+# add flag if comment contains any drect reference to gamestop
+comments$contains_GME <- str_detect(comments$comment_text, regex("GME|gamestop|gamestonk", case = FALSE))
+
 
 # wish list ---------------------------------------------------------------
 
@@ -63,6 +139,5 @@ comments <- comments %>%
 # identify stocks
 
 
-
-# write out
+# write out ---------------------------------------------------------------
 # write_csv(comments, "data/comments_prepped.csv")
