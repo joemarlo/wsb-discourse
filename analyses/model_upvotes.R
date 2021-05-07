@@ -65,7 +65,7 @@ comments_test <- filter(comments_split, type == 'test') %>% select(-type)
 # linear regression -------------------------------------------------------
 
 model_lm <- lm(score ~ ., data = comments_train)
-# broom::tidy(model_lm) %>% View
+broom::tidy(model_lm) %>% View
 
 
 # lasso -------------------------------------------------------------------

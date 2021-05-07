@@ -127,9 +127,10 @@ comments <- comments %>%
   unnest_wider(col = match)
 rm(key_phrases)
 
+
 # contains gamestop -------------------------------------------------------
 
-# add flag if comment contains any drect reference to gamestop
+# add flag if comment contains any direct reference to gamestop
 comments$contains_GME <- str_detect(comments$comment_text, regex("GME|gamestop|gamestonk", case = FALSE))
 
 
