@@ -8,6 +8,37 @@ set.seed(44)
 comments <- read_csv("data/comments_selected.csv")
 
 
+# balance the data --------------------------------------------------------
+
+# plot distribution of scores
+ggplot(comments, aes(x = score)) +
+  geom_histogram(bins = 300) +
+  scale_x_log10(labels = scales::comma_format()) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  labs(title = "Distribution of upvotes is highly imbalanced",
+       x = 'Upvotes',
+       y = 'n')
+# ggsave('analyses/plots/imbalance.png', width = 8, height = 4)
+
+# balance the data by stratify on binned scores and randomly sample 10k from each
+comments <- comments %>% 
+  mutate(score_bin = cut(score, breaks = c(-1000, 0, 5, 10, 100, 1000, 1e6))) %>% 
+  group_by(score_bin) %>% 
+  slice_sample(n = 10000) %>% 
+  ungroup() %>% 
+  select(-score_bin)
+
+# plot distribution of scores
+ggplot(comments, aes(x = score)) +
+  geom_histogram(bins = 300) +
+  scale_x_log10(labels = scales::comma_format()) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  labs(title = "Distribution of upvotes after balancing",
+       x = 'Upvotes',
+       y = 'n')
+# ggsave('analyses/plots/balanced.png', width = 8, height = 4)
+
+
 # create stratified train-test split --------------------------------------
 
 # set initial splits for train, validate test
@@ -75,7 +106,7 @@ broom::tidy(model_lm) %>% View
 
 # knn ---------------------------------------------------------------------
 
-# grid search for optimal k value based on subset
+# grid search for optimal k value based on subset (for speed)
 control_knn <- caret::trainControl(method = "repeatedcv", repeats = 3)
 tune_knn <- caret::train(
   score ~ .,
@@ -146,7 +177,7 @@ model_rf <- ranger::ranger(
 # variable importance
 model_rf$variable.importance %>% 
   enframe() %>% 
-  slice_max(order_by = value, n = 20) %>% 
+  slice_max(order_by = value, n = 10) %>% 
   ggplot(aes(x = value, y = reorder(name, value))) +
   geom_col() +
   scale_x_continuous(labels = NULL) +
@@ -158,13 +189,37 @@ model_rf$variable.importance %>%
 
 # boosting ----------------------------------------------------------------
 
-# TODO: dummy code
-model_xgb <- xgboost::xgboost(
-  data = select(comments_train, -score),
-  label = comments_train$score,
+# grid search 
+grid_xgb <- expand.grid(nrounds = 50,
+                        max_depth = c(1, 5, 10, 15, 20),
+                        eta = c(0.1, 0.4),
+                        gamma = 0,
+                        colsample_bytree = 0.7,
+                        min_child_weight = 1,
+                        subsample = c(0.8, 1))
+tune_xgb <- caret::train(
+  score ~ .,
+  data = comments_train,
+  method = 'xgbTree',
   nthread = 4L,
-  nrounds = 2,
-  objective = 'regression'
+  objective = "reg:squarederror",
+  tuneGrid = grid_xgb,
+  trControl = control_rf
+)
+plot(tune_xgb$results$max_depth, tune_xgb$results$RMSE)
+
+# fit final model
+model_xgb <- xgboost::xgboost(
+  data = xgboost::xgb.DMatrix(as.matrix(comments_train[,-1]),
+                              label = comments_train$score), 
+  objective = "reg:squarederror",
+  nrounds = 100,
+  max_depth = tune_xgb$bestTune$max_depth,
+  eta = tune_xgb$bestTune$eta,
+  gamma = tune_xgb$bestTune$gamma,
+  colsample_bytree = tune_xgb$bestTune$colsample_bytree,
+  min_child_weight = tune_xgb$bestTune$min_child_weight,
+  subsample = tune_xgb$bestTune$subsample
 )
 
 
@@ -181,10 +236,12 @@ y_hat_lm <- predict(model_lm, newdata = comments_validate)
 y_hat_knn <- model_knn$pred
 y_hat_tree <- predict(model_tree, newdata = comments_validate)
 y_hat_rf <- predict(model_rf, data = comments_validate)$predictions
+xgb_validate <- xgboost::xgb.DMatrix(data = as.matrix(comments_validate[,-1]))
+y_hat_xgb <- predict(model_xgb, newdata = xgb_validate)
 
 # RMSE
-y_hats <- list(y_hat_lm, y_hat_knn, y_hat_tree, y_hat_rf)
-y_names <- c("Linear model", "KNN", "Decision tree", "Random forest")
+y_hats <- list(y_hat_lm, y_hat_knn, y_hat_tree, y_hat_rf, y_hat_xgb)
+y_names <- c("Linear model", "KNN", "Decision tree", "Random forest", "XGBoost")
 map(y_hats, function(y_hat) RMSE(comments_validate$score, y_hat)) %>% 
   setNames(y_names) %>% 
   enframe() %>% 
@@ -197,10 +254,33 @@ map(y_hats, function(y_hat) RMSE(comments_validate$score, y_hat)) %>%
        subtitle = 'Lower is better',
        x = "RMSE",
        y = NULL)
-# ggsave("analyses/plots/RMSEs.png", width = 6, height = 5)
-
+# ggsave("analyses/plots/RMSEs.png", width = 8, height = 4)
 
 
 # final model -------------------------------------------------------------
 
+final_y_hats <- predict(model_rf, data = comments_test)$predictions
+final_RMSE <- RMSE(comments_test$score, final_y_hats)
 
+# plot distribution of scores
+enframe(final_y_hats) %>% 
+  ggplot(aes(x = value)) +
+  geom_histogram(color = 'white', bins = 100) +
+  labs(title = "Distribution of test predictions from final model",
+       x = 'Upvotes',
+       y = 'n')
+# ggsave("analyses/plots/final_preds.png", width = 8, height = 5)
+
+# plot preds against actuals
+tibble(y = comments_test$score,
+       y_hat = final_y_hats) %>% 
+  ggplot(aes(x = y, y = y_hat)) +
+  geom_point(alpha = 0.3) +
+  geom_abline(color = 'grey40', linetype = 'dashed') +
+  scale_x_continuous(labels = scales::comma_format()) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  labs(title = "Predictions of final model vs. actuals on test set",
+       subtitle = paste0("RMSE: ", round(final_RMSE, 1)),
+       x = "Actual upvotes",
+       y = "Predicted upvotes")
+# ggsave("analyses/plots/preds_vs_actuals.png", width = 8, height = 5)

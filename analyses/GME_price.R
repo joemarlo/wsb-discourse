@@ -11,7 +11,8 @@ key_dates <- tribble(
   ~date, ~y, ~label,
   "2021-01-05", 470, 'All time high',
   "2021-02-02", 320, 'Second peak',
-  '2021-02-10', 200, "Congressional\nhearing\n(2/18)"
+  '2021-02-10', 200, "Congressional\nhearing\n(2/18)",
+  '2021-03-10', 370, "Third peak"
 ) %>% 
   mutate(date = as.Date(date))
 
@@ -22,8 +23,9 @@ GME_price %>%
   geom_candlestick(aes(open = open, high = high, low = low, close = close),
                    colour_up = 'grey30', colour_down = 'grey30',
                    fill_up = 'grey70', fill_down = 'grey70') +
-  geom_text(data = key_dates, aes(x = date, y = y, label = label), hjust = 0) +
-  scale_x_date(breaks = semi_monthly, date_labels = "%m/%d") +
+  geom_text(data = key_dates, aes(x = date, y = y, label = label), 
+            color = 'grey30', hjust = 0) +
+  scale_x_date(breaks = semi_monthly, date_labels = "%b-%d") +
   labs(title = 'GameStop stock price spikes in late January',
        subtitle = 'Candlestick chart shows the high, low, open, and close prices',
        x = NULL,
