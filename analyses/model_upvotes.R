@@ -4,93 +4,10 @@ source('analyses/helpers.R')
 source('analyses/plots/ggplot_settings.R')
 set.seed(44)
 
-# read in the processed data
-comments <- read_csv("data/comments_selected.csv")
-
-
-# balance the data --------------------------------------------------------
-
-# plot distribution of scores
-ggplot(comments, aes(x = score)) +
-  geom_histogram(bins = 300) +
-  scale_x_log10(labels = scales::comma_format()) +
-  scale_y_continuous(labels = scales::comma_format()) +
-  labs(title = "Distribution of upvotes is highly imbalanced",
-       x = 'Upvotes',
-       y = 'n')
-# ggsave('analyses/plots/imbalance.png', width = 8, height = 4)
-
-# balance the data by stratify on binned scores and randomly sample 10k from each
-comments <- comments %>% 
-  mutate(score_bin = cut(score, breaks = c(-1000, 0, 5, 10, 100, 1000, 1e6))) %>% 
-  group_by(score_bin) %>% 
-  slice_sample(n = 10000) %>% 
-  ungroup() %>% 
-  select(-score_bin)
-
-# plot distribution of scores
-ggplot(comments, aes(x = score)) +
-  geom_histogram(bins = 300) +
-  scale_x_log10(labels = scales::comma_format()) +
-  scale_y_continuous(labels = scales::comma_format()) +
-  labs(title = "Distribution of upvotes after balancing",
-       x = 'Upvotes',
-       y = 'n')
-# ggsave('analyses/plots/balanced.png', width = 8, height = 4)
-
-
-# create stratified train-test split --------------------------------------
-
-# set initial splits for train, validate test
-split_ratios <- c(0.6, 0.2, 0.2)
-
-split_data <- function(tbl, splits){
-  # function creates train, test, validate sets for a given dataset
-  
-  # create train dataset
-  indices_train <- sample(c(TRUE, FALSE), 
-                          size = nrow(tbl), 
-                          replace = TRUE, 
-                          prob = c(splits[1], 1-splits[1]))
-  train_df <- tbl[indices_train,]
-  train_df$type <- 'train'
-  
-  # create validate dataset
-  indices_validate <- sample(c(TRUE, FALSE), 
-                             size = sum(!indices_train), 
-                             replace = TRUE,
-                             prob = c(split_ratios[2], split_ratios[3]))
-  validate_df <- tbl[!indices_train,][indices_validate,]
-  validate_df$type <- 'validate'
-  
-  # create test dataset
-  test_df <- tbl[!indices_train,][!indices_validate,]
-  test_df$type <- 'test'
-  
-  return(bind_rows(train_df, validate_df, test_df))
-}
-
-# create train test split but stratify it by month
-comments_split <- comments %>% 
-  group_by(month) %>% 
-  group_split() %>% 
-  map(function(tbl) split_data(tbl, split_ratios)) %>% 
-  bind_rows()
-
-# verify it worked
-comments_split %>% 
-  group_by(month, type) %>% 
-  tally() %>% 
-  mutate(prop = n / sum(n))
-table(comments_split$type) / sum(table(comments_split$type))
-
-# clean up column names
-comments_split <- janitor::clean_names(comments_split)
-
-# create final datasets
-comments_train <- filter(comments_split, type == 'train') %>% select(-type)
-comments_validate <- filter(comments_split, type == 'validate') %>% select(-type)
-comments_test <- filter(comments_split, type == 'test') %>% select(-type)
+# read in the data
+comments_train <- read_csv("data/comments_train.csv")
+comments_validate <- read_csv("data/comments_validate.csv")
+comments_test <- read_csv("data/comments_test.csv")
 
 
 # linear regression -------------------------------------------------------
@@ -131,7 +48,7 @@ model_knn <- FNN::knn.reg(
   train = train_knn, 
   test = validate_knn,
   y = comments_train$score,
-  k = 20
+  k = 30
 )
 
 
@@ -171,7 +88,7 @@ model_rf <- ranger::ranger(
   respect.unordered.factors = TRUE,
   num.threads = 4L,
   importance = 'impurity',
-  mtry = 5
+  mtry = tune_rf$bestTune$mtry
 )
 
 # variable importance
@@ -181,16 +98,16 @@ model_rf$variable.importance %>%
   ggplot(aes(x = value, y = reorder(name, value))) +
   geom_col() +
   scale_x_continuous(labels = NULL) +
-  labs(title = "Variable importance from random forest",
+  labs(title = "Top 10 variables by importance in random forest model",
        x = "Importance",
        y = NULL)
-# ggsave("analyses/plots/rf_importance", width = 6, height = 8)
+# ggsave("analyses/plots/rf_importance.png", width = 8, height = 4)
 
 
 # boosting ----------------------------------------------------------------
 
 # grid search 
-grid_xgb <- expand.grid(nrounds = 50,
+grid_xgb <- expand.grid(nrounds = 100,
                         max_depth = c(1, 5, 10, 15, 20),
                         eta = c(0.1, 0.4),
                         gamma = 0,
@@ -221,6 +138,7 @@ model_xgb <- xgboost::xgboost(
   min_child_weight = tune_xgb$bestTune$min_child_weight,
   subsample = tune_xgb$bestTune$subsample
 )
+# model_xgb$evaluation_log$train_rmse %>% plot()
 
 
 # RNN ---------------------------------------------------------------------
@@ -259,6 +177,7 @@ map(y_hats, function(y_hat) RMSE(comments_validate$score, y_hat)) %>%
 
 # final model -------------------------------------------------------------
 
+# final RMSE
 final_y_hats <- predict(model_rf, data = comments_test)$predictions
 final_RMSE <- RMSE(comments_test$score, final_y_hats)
 
@@ -277,10 +196,30 @@ tibble(y = comments_test$score,
   ggplot(aes(x = y, y = y_hat)) +
   geom_point(alpha = 0.3) +
   geom_abline(color = 'grey40', linetype = 'dashed') +
-  scale_x_continuous(labels = scales::comma_format()) +
-  scale_y_continuous(labels = scales::comma_format()) +
-  labs(title = "Predictions of final model vs. actuals on test set",
+  scale_x_log10(labels = scales::comma_format(1)) +
+  scale_y_log10(labels = scales::comma_format(1)) +
+  labs(title = "Final model: test set predictions vs. actuals",
        subtitle = paste0("RMSE: ", round(final_RMSE, 1)),
        x = "Actual upvotes",
        y = "Predicted upvotes")
 # ggsave("analyses/plots/preds_vs_actuals.png", width = 8, height = 5)
+
+# calibration plot
+bin_breaks <- seq(min(c(0, final_y_hats)), 
+                  max(final_y_hats),
+                  by = 50)
+tibble(y = comments_test$score,
+       y_hat = final_y_hats) %>% 
+  mutate(y_hat_binned = cut(y_hat, breaks = bin_breaks)) %>%
+  left_join(tibble(bin_label = bin_breaks,
+                   y_hat_binned = cut(bin_label, breaks = bin_breaks)),
+            by = 'y_hat_binned') %>% 
+  ggplot(aes(x = bin_label, y = y, group = bin_label)) +
+  geom_boxplot() +
+  scale_x_continuous(breaks = bin_breaks, labels = scales::comma_format()) +
+  scale_y_log10(labels = scales::comma_format(1)) +
+  labs(title = "Calibration: Actual upvotes vs. predicted",
+       x = "Midpoint of binned predictions",
+       y = "Actual upvotes") +
+  theme(axis.text.x = element_text(angle = -55))
+# ggsave("analyses/plots/calibration.png", width = 8, height = 5)

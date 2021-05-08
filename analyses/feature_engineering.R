@@ -28,6 +28,9 @@ market_holidays <- c('2020-12-25', '2021-01-01', '2021-01-18', '2021-02-15', '20
 market_holidays <- as.Date(market_holidays)
 comments$is_market_day <- (comments$date %notin% market_holidays) & (comments$wday %notin% c("Sat", "Sun"))
 
+# add month column
+comments$month <- lubridate::month(comments$datetime)
+
 
 # add comment hierarchy flag ----------------------------------------------
 
@@ -109,7 +112,7 @@ key_phrases <- read_csv("data/wsb_language.csv")
 # determine which comments contain which phrases
 comments <- comments %>% 
   rowwise() %>% 
-  mutate(match = list(str_count(comment_text, regex(key_phrases$phrase, case = FALSE)))) %>% 
+  mutate(match = list(str_detect(comment_text, regex(key_phrases$phrase, case = FALSE)))) %>% 
   ungroup()
 
 # clean up phrases
@@ -134,9 +137,31 @@ rm(key_phrases)
 comments$contains_GME <- str_detect(comments$comment_text, regex("GME|gamestop|gamestonk", case = FALSE))
 
 
+# add stock price ---------------------------------------------------------
+
+# read in the data
+GME_price <- read_csv("data/GME_price.csv")
+
+# calculate percent gain for previous day
+# fill close price for non-market days
+GME_price <- GME_price %>% 
+  select(date, close) %>% 
+  full_join(tibble(date = seq(min(GME_price$date), max(GME_price$date), by = 'day')),
+            by = 'date') %>% 
+  arrange(date) %>% 
+  mutate(close_fill = if_else(is.na(close), lag(close), close),
+         close_fill = if_else(is.na(close_fill), lag(close_fill), close_fill),
+         close_fill = if_else(is.na(close_fill), lag(close_fill), close_fill),
+         GME_return = close_fill / lag(close_fill) - 1,
+         GME_return_previous_day = lag(GME_return)) %>% 
+  select(date, GME_return_previous_day)
+
+# add to comments
+comments <- left_join(comments, GME_price, by = 'date')
+
+
 # wish list ---------------------------------------------------------------
 
-# GME stock price
 # identify stocks
 
 

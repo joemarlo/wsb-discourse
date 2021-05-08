@@ -8,28 +8,73 @@ set.seed(44)
 comments <- read_csv("data/comments_prepped.csv")
 
 
+# balance the data --------------------------------------------------------
+
+# plot distribution of scores
+ggplot(comments, aes(x = score)) +
+  geom_histogram(bins = 300) +
+  scale_x_log10(labels = scales::comma_format(1)) +
+  scale_y_continuous(labels = scales::comma_format(1)) +
+  labs(title = "Distribution of upvotes is highly imbalanced",
+       x = 'Upvotes',
+       y = 'n')
+# ggsave('analyses/plots/imbalance.png', width = 8, height = 4)
+
+# balance the data by stratify on binned scores and randomly sample 10k from each
+comments <- comments %>% 
+  mutate(score_bin = cut(score, breaks = c(-1000, 0, 5, 10, 100, 1000, 1e6))) %>% 
+  group_by(score_bin) %>% 
+  slice_sample(n = 10000) %>% 
+  ungroup() %>% 
+  select(-score_bin)
+
+# plot distribution of scores
+ggplot(comments, aes(x = score)) +
+  geom_histogram(bins = 300) +
+  scale_x_log10(labels = scales::comma_format(1)) +
+  scale_y_continuous(labels = scales::comma_format(1)) +
+  labs(title = "Distribution of upvotes after balancing",
+       x = 'Upvotes',
+       y = 'n')
+# ggsave('analyses/plots/balanced.png', width = 8, height = 4)
+
+
 # create document term matrix ---------------------------------------------
 
-# First, unnest comments to tokens and remove stop words:
+# first, unnest comments to tokens and remove stop words:
+## uni-grams
+# comments_tokenized <- comments %>% 
+#   select(id_comment, comment_text) %>% 
+#   unnest_tokens(word, comment_text) %>% 
+#   anti_join(stop_words, by = 'word')
+
+## bi-grams
+stop_words_custom <- c(stop_words$word, "www.reddit.com", 'https', 'r', 'amp', 'utm', 'utm_source', 'utm_medium', 'utm_name', 'utm_campaign')
 comments_tokenized <- comments %>% 
   select(id_comment, comment_text) %>% 
-  unnest_tokens(word, comment_text) %>% 
-  anti_join(stop_words, by = 'word')
+  unnest_tokens(word, comment_text, token = 'ngrams', n = 2) %>% 
+  separate(word, c('word1', 'word2'), sep = ' ') %>% 
+  na.omit() %>% 
+  filter(word1 %notin% stop_words_custom & word2 %notin% stop_words_custom) %>% 
+  unite(word, word1, word2, sep = " ")
 
-# Count the occurrences of each word in each document (comment):
+# count the occurrences of each word in each document (comment):
 comments_counts <- comments_tokenized %>% 
   group_by(id_comment, word) %>% 
   summarise(count = n(),
             .groups = 'drop')
 
-# create bag-of-words matrix but remove words with less than 5000 total mentions
+# create bag-of-words matrix but remove words with less than 5000 total mentions (100 if bi-grams)
 comments_dtm <- comments_counts %>% 
   group_by(word) %>% 
   mutate(count_overall = sum(count)) %>% 
   ungroup() %>% 
-  filter(count_overall >= 5000) %>% 
+  filter(count_overall >= 100) %>% #5000) %>% 
   select(-count_overall) %>% 
   pivot_wider(values_from = count, names_from = word)
+
+# clean up names
+colnames(comments_dtm)[-1] <- paste0("top_bigram_", janitor::make_clean_names(colnames(comments_dtm)[-1]))
 
 # add back to original dataframe
 comments <- comments %>% 
@@ -48,9 +93,6 @@ rm(comments_tokenized, comments_counts, comments_dtm, replacement_dict)
 
 
 # clean up dataframe ------------------------------------------------------
-
-# add month column
-comments$month <- lubridate::month(comments$datetime)
 
 # drop unnecessary columns
 cols_to_drop <- c('comment_text', 'date', 'datetime', 'type', 'id_post', 'id_comment', 'id_parent')
@@ -99,6 +141,16 @@ rm(preds_lasso, cv_output, lambda_optimal, train_lasso, test_lasso_x,
 
 # retain only these variables
 comments <- select(comments, all_of(c('score', cols_to_retain$term[-1])))
+
+# plot top features
+cols_to_retain[-1,] %>% 
+  ggplot(aes(x = estimate, y = reorder(term, estimate))) +
+  geom_col() +
+  labs(title = "Features selected from lasso",
+       x = 'Lasso estimate',
+       y = NULL) +
+  theme(axis.text.y = element_text(size = 6))
+# ggsave('analyses/plots/lasso_features.png', width = 8, height = 8)
 
 
 # write out ---------------------------------------------------------------
