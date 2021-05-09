@@ -1,5 +1,6 @@
 inputs/*.csv
 data/*.csv
+material/papers/
 reddit_credentials.py
 .DS_Store
 .DS_store

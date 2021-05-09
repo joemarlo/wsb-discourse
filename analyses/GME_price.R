@@ -7,7 +7,7 @@ source("analyses/helpers.R")
 GME_price <- tq_get("GME") %>% filter(date > as.Date('2020-11-26'))
 
 # write out for feature engineering
-write_csv(GME_price, "data/GME_price.csv")
+# write_csv(GME_price, "data/GME_price.csv")
 
 # df of key dates
 key_dates <- tribble(
@@ -25,7 +25,8 @@ GME_price %>%
   geom_candlestick(aes(open = open, high = high, low = low, close = close),
                    colour_up = 'grey30', colour_down = 'grey30',
                    fill_up = 'grey70', fill_down = 'grey70') +
-  geom_vline(xintercept = as.Date('2021-02-18'), color = 'grey50') +
+  geom_vline(xintercept = as.Date('2021-02-18'), 
+             color = 'grey50', linetype = 'dashed') +
   geom_text(data = key_dates, aes(x = date, y = y, label = label), 
             color = 'grey30', hjust = 0) +
   scale_x_date(breaks = semi_monthly, date_labels = "%b-%d") +

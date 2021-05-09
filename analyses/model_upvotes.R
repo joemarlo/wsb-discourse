@@ -174,6 +174,49 @@ map(y_hats, function(y_hat) RMSE(comments_validate$score, y_hat)) %>%
        y = NULL)
 # ggsave("analyses/plots/RMSEs.png", width = 8, height = 4)
 
+# precision at k
+precision_at_k <- function(y, y_hat){
+  # calculates the precision-at-k
+  
+  # rank the predictions
+  ranked_preds <- tibble(y = y,
+                         y_hat = y_hat) %>% 
+    mutate(rank_y = rank(-y),
+           rank_y_hat = rank(-y_hat)) %>% 
+    arrange(-y_hat)
+  
+  # calc precision
+  precision <- sapply(seq_along(ranked_preds$rank_y_hat), function(i){
+    sliced_tbl <- ranked_preds[1:i,]
+    prop_y <- mean(sliced_tbl$y <= i)
+    return(prop_y)
+  }) %>% 
+    enframe() %>% 
+    rename(k = name, precision = value)
+  
+  return(precision)
+}
+
+precisions_df <- map2_dfr(y_hats, y_names, function(y_hat, y_name){
+  precision <- precision_at_k(comments_validate$score, y_hat)
+  precision$model <- y_name
+  return(precision)
+})
+
+precisions_df %>% 
+  ggplot(aes(x = k, y = precision, color = model)) +
+  geom_line() +
+  scale_x_continuous(labels = scales::comma_format(),
+                     limits = c(0, 1000)) +
+  labs(title = "Precision-at-k for each model on the validation set",
+       subtitle = 'Only 1,000 highest ranked predictions shown',
+       caption = "Decision tree predictions are invariant",
+       x = 'Predictions ranked by value (k)',
+       y = 'Precision',
+       color = NULL) +
+  theme(legend.position = 'bottom')
+# ggsave("analyses/plots/precision.png", width = 8, height = 6)
+
 
 # final model -------------------------------------------------------------
 
@@ -191,8 +234,9 @@ enframe(final_y_hats) %>%
 # ggsave("analyses/plots/final_preds.png", width = 8, height = 5)
 
 # plot preds against actuals
-tibble(y = comments_test$score,
-       y_hat = final_y_hats) %>% 
+final_preds <- tibble(y = comments_test$score,
+                      y_hat = final_y_hats)
+final_preds %>% 
   ggplot(aes(x = y, y = y_hat)) +
   geom_point(alpha = 0.3) +
   geom_abline(color = 'grey40', linetype = 'dashed') +
@@ -208,8 +252,7 @@ tibble(y = comments_test$score,
 bin_breaks <- seq(min(c(0, final_y_hats)), 
                   max(final_y_hats),
                   by = 50)
-tibble(y = comments_test$score,
-       y_hat = final_y_hats) %>% 
+final_preds %>% 
   mutate(y_hat_binned = cut(y_hat, breaks = bin_breaks)) %>%
   left_join(tibble(bin_label = bin_breaks,
                    y_hat_binned = cut(bin_label, breaks = bin_breaks)),
@@ -223,3 +266,15 @@ tibble(y = comments_test$score,
        y = "Actual upvotes") +
   theme(axis.text.x = element_text(angle = -55))
 # ggsave("analyses/plots/calibration.png", width = 8, height = 5)
+
+# precision at k
+precision_at_k(comments_test$score, final_y_hats) %>% 
+  # filter(rank > 100) %>%
+  ggplot(aes(x = k, y = precision)) +
+  geom_line() +
+  scale_x_continuous(labels = scales::comma_format()) +
+  labs(title = "Precision-at-k of final model",
+       x = 'Predictions ranked by value (k)',
+       y = 'Precision',
+       color = NULL) +
+  theme(legend.position = 'bottom')
