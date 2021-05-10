@@ -21,6 +21,7 @@ key_dates <- tribble(
 
 # plot candlestick
 GME_price %>% 
+  filter(date <= as.Date('2021-04-15')) %>% 
   ggplot(aes(x = date, y = close)) +
   geom_candlestick(aes(open = open, high = high, low = low, close = close),
                    colour_up = 'grey30', colour_down = 'grey30',

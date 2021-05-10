@@ -1,6 +1,7 @@
 library(tidyverse)
 library(tidytext)
 source('analyses/plots/ggplot_settings.R')
+source("analyses/helpers.R")
 
 posts <- read_csv("inputs/posts_raw.csv")
 comments <- read_csv("inputs/comments_raw.csv")
@@ -38,14 +39,13 @@ posts %>%
   pivot_longer(-date) %>% 
   ggplot(aes(x = date, y = value)) + 
   geom_col(color = 'white') +
-  scale_x_date(date_breaks = '2 week',
-               date_labels = '%b-%d') +
+  scale_x_date(breaks = semi_monthly, date_labels = "%b-%d") +
   scale_y_continuous(labels = scales::comma_format()) +
   facet_wrap(~name, ncol = 1, scales = 'free_y') +
   labs(title = "Count of daily posts and comments on r/wallstreetbets",
        x = NULL,
        y = NULL)
-# ggsave("analyses/plots/raw_daily_counts.png", height = 6, width = 7)
+# ggsave("analyses/plots/raw_daily_counts.png", height = 6, width = 8)
 
 # posts and comments over time of day
 posts %>% 

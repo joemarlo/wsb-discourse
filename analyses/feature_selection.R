@@ -56,7 +56,9 @@ comments_tokenized <- comments %>%
   separate(word, c('word1', 'word2'), sep = ' ') %>% 
   na.omit() %>% 
   filter(word1 %notin% stop_words_custom & word2 %notin% stop_words_custom) %>% 
-  unite(word, word1, word2, sep = " ")
+  unite(word, word1, word2, sep = " ") %>% 
+  filter(word != "wallstreetbets comments",
+         word != "www.youtube.com watch")
 
 # count the occurrences of each word in each document (comment):
 comments_counts <- comments_tokenized %>% 

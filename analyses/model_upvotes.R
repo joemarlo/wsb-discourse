@@ -16,11 +16,6 @@ model_lm <- lm(score ~ ., data = comments_train)
 broom::tidy(model_lm) %>% View
 
 
-# lasso -------------------------------------------------------------------
-
-# glmnet
-
-
 # knn ---------------------------------------------------------------------
 
 # grid search for optimal k value based on subset (for speed)
@@ -101,7 +96,7 @@ model_rf$variable.importance %>%
   labs(title = "Top 10 variables by importance in random forest model",
        x = "Importance",
        y = NULL)
-# ggsave("analyses/plots/rf_importance.png", width = 8, height = 4)
+# ggsave("analyses/plots/importance_rf.png", width = 8, height = 4)
 
 
 # boosting ----------------------------------------------------------------
@@ -139,6 +134,18 @@ model_xgb <- xgboost::xgboost(
   subsample = tune_xgb$bestTune$subsample
 )
 # model_xgb$evaluation_log$train_rmse %>% plot()
+
+# variable importance
+xgboost::xgb.importance(model = model_xgb) %>% 
+  tibble() %>% 
+  slice_max(order_by = Gain, n = 10) %>% 
+  ggplot(aes(x = Gain, y = reorder(Feature, Gain))) +
+  geom_col() +
+  scale_x_continuous(labels = NULL) +
+  labs(title = "Top 10 variables by importance in XGBoost model",
+       x = "Importance",
+       y = NULL)
+# ggsave("analyses/plots/importance_xgb.png", width = 8, height = 4)
 
 
 # RNN ---------------------------------------------------------------------
@@ -185,7 +192,7 @@ precision_at_k <- function(y, y_hat){
            rank_y_hat = rank(-y_hat)) %>% 
     arrange(-y_hat)
   
-  # calc precision
+  # calculate precision
   precision <- sapply(seq_along(ranked_preds$rank_y_hat), function(i){
     sliced_tbl <- ranked_preds[1:i,]
     prop_y <- mean(sliced_tbl$y <= i)
@@ -278,3 +285,33 @@ precision_at_k(comments_test$score, final_y_hats) %>%
        y = 'Precision',
        color = NULL) +
   theme(legend.position = 'bottom')
+# ggsave("analyses/plots/precision_xgb.png", width = 8, height = 6)
+
+
+# key variables -----------------------------------------------------------
+
+# variable importance
+xgboost::xgb.importance(model = model_xgb) %>% 
+  tibble() %>% 
+  filter(str_detect(Feature, "^(sentiment)|(keyphrase)|(top_bigram)")) %>% 
+  ggplot(aes(x = Gain, y = reorder(Feature, Gain))) +
+  geom_col() +
+  scale_x_continuous(labels = NULL) +
+  labs(title = "Comment content by feature importance",
+       subtitle = 'XGBoost model',
+       x = "Importance",
+       y = NULL)
+# ggsave("analyses/plots/importance_xgb_content.png", width = 8, height = 4)
+
+# lasso features
+lasso_features <- read_csv("data/lasso_features.csv")
+lasso_features %>% 
+  filter(str_detect(term, "^(sentiment)|(keyphrase)|(top_bigram)")) %>% 
+  ggplot(aes(x = estimate, y = reorder(term, estimate))) +
+  geom_vline(xintercept = 0, linetype = 'dashed', color = 'grey50') +
+  geom_col() +
+  labs(title = "Comment content by LASSO estimate",
+       subtitle = 'LASSO feature selection model',
+       x = "Estimate",
+       y = NULL)
+# ggsave("analyses/plots/importance_lasso_content.png", width = 8, height = 6)
