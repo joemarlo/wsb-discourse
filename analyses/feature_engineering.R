@@ -34,9 +34,18 @@ comments$month <- lubridate::month(comments$datetime)
 
 # add comment hierarchy flag ----------------------------------------------
 
+# read in the data denoting the comment level (depth)
+comment_levels <- read_csv("data/comment_level.csv")
+
+# join the data
+comments <- left_join(comments, comment_levels, by = 'id_comment')
+
+# remove NAs as 8% of comments do have a level b/c we don't have the full comment tree
+comments <- na.omit(comments)
+
 # add flag if comment is top level or not
 # t3 prefix indicates if comment is top level
-comments$is_direct_comment <- stringr::str_sub(comments$id_parent, 0, 2) == 't3'
+# comments$is_direct_comment <- stringr::str_sub(comments$id_parent, 0, 2) == 't3'
 
 
 # identify emojis ---------------------------------------------------------

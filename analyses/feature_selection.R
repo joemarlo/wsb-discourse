@@ -105,7 +105,7 @@ rm(cols_to_drop)
 # feature selection via LASSO ---------------------------------------------
 
 # dummy code
-vars_to_dummy <- c("wday", "hour", "flair", "topic")
+vars_to_dummy <- c("wday", "hour", "flair", "topic", 'comment_level')
 comments <- fastDummies::dummy_cols(comments, vars_to_dummy, remove_selected_columns = TRUE)
 
 # extract x and y values

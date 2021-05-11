@@ -43,7 +43,7 @@ model_knn <- FNN::knn.reg(
   train = train_knn, 
   test = validate_knn,
   y = comments_train$score,
-  k = 30
+  k = 18
 )
 
 

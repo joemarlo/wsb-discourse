@@ -6,6 +6,11 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
 
 <br>
 <p align="center">
+<img src="analyses/plots/precision.png" width=80%>
+</p>
+
+<br>
+<p align="center">
 <img src="analyses/plots/lasso_features.png" width=80%>
 </p>
 
