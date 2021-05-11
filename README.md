@@ -23,7 +23,7 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
 ## Folder structure
 
     .
-    ├── analyses          # Model fitting, validation, and performance estimates
+    ├── analyses          # Feature engineering, model fitting, and performance estimates
     │   └── plots         # Plots
     ├── data              # Cleaned data and cleaning scripts
     ├── inputs            # Raw input data and scraping scripts
@@ -39,7 +39,8 @@ To reproduce, run the scripts in the following order:
 3.  Features: 
     1. `analyses/topic_modeling.R`  
     2. `analyses/sentiment_scoring.py`  
-    3. `analyses/comment_hierarchy.R`  
+    3. `analyses/GME_price.R`  
+    4. `analyses/comment_hierarchy.R`  
 4. `analyses/feature_engineering.R`  
 5. `analyses/feature_selection.R`  
 6. `analyses/create_train_test_split.R`

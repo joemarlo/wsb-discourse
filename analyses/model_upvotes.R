@@ -103,10 +103,10 @@ model_rf$variable.importance %>%
 
 # grid search 
 grid_xgb <- expand.grid(nrounds = 100,
-                        max_depth = c(1, 5, 10, 15, 20),
-                        eta = c(0.1, 0.4),
-                        gamma = 0,
-                        colsample_bytree = 0.7,
+                        max_depth = c(1, 5, 10),
+                        eta = c(0.1, 0.2, 0.5),
+                        gamma = c(0, 1, 5),
+                        colsample_bytree = 0.9,
                         min_child_weight = 1,
                         subsample = c(0.8, 1))
 tune_xgb <- caret::train(
@@ -118,7 +118,10 @@ tune_xgb <- caret::train(
   tuneGrid = grid_xgb,
   trControl = control_rf
 )
-plot(tune_xgb$results$max_depth, tune_xgb$results$RMSE)
+tune_xgb$results %>% 
+  select(max_depth, eta, gamma, subsample, RMSE) %>% 
+  ggplot(aes(x = max_depth, y = gamma, fill = RMSE)) +
+  geom_tile()
 
 # fit final model
 model_xgb <- xgboost::xgboost(
@@ -224,68 +227,90 @@ precisions_df %>%
   theme(legend.position = 'bottom')
 # ggsave("analyses/plots/precision.png", width = 8, height = 6)
 
+# residuals
+bin_breaks <- seq(-1000, 17000, by = 1000)
+bin_labels <- tibble(y_binned = cut(bin_breaks, bin_breaks),
+                     y_label = factor(bin_breaks, levels = bin_breaks))
+map(y_hats, function(y_hat) comments_validate$score - y_hat) %>% 
+  setNames(y_names) %>% 
+  enframe() %>% 
+  unnest(value) %>% 
+  mutate(y = rep(comments_validate$score, length(y_hats)),
+         y_binned = cut(y, breaks = seq(-1000, 17000, by = 1000))) %>%
+  left_join(bin_labels, by = 'y_binned') %>% 
+  ggplot(aes(x = y_label, y = value)) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey50') +
+  geom_boxplot(alpha = 0.5) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  facet_wrap(~name, ncol = 3) +
+  labs(title = "Residuals by model",
+       x = "Binned y",
+       y = 'Residuals') +
+  theme(axis.text.x = element_text(angle = -50))
+# ggsave("analyses/plots/residuals.png", width = 8, height = 6)
+
 
 # final model -------------------------------------------------------------
 
-# final RMSE
-final_y_hats <- predict(model_rf, data = comments_test)$predictions
-final_RMSE <- RMSE(comments_test$score, final_y_hats)
-
-# plot distribution of scores
-enframe(final_y_hats) %>% 
-  ggplot(aes(x = value)) +
-  geom_histogram(color = 'white', bins = 100) +
-  labs(title = "Distribution of test predictions from final model",
-       x = 'Upvotes',
-       y = 'n')
-# ggsave("analyses/plots/final_preds.png", width = 8, height = 5)
-
-# plot preds against actuals
-final_preds <- tibble(y = comments_test$score,
-                      y_hat = final_y_hats)
-final_preds %>% 
-  ggplot(aes(x = y, y = y_hat)) +
-  geom_point(alpha = 0.3) +
-  geom_abline(color = 'grey40', linetype = 'dashed') +
-  scale_x_log10(labels = scales::comma_format(1)) +
-  scale_y_log10(labels = scales::comma_format(1)) +
-  labs(title = "Final model: test set predictions vs. actuals",
-       subtitle = paste0("RMSE: ", round(final_RMSE, 1)),
-       x = "Actual upvotes",
-       y = "Predicted upvotes")
-# ggsave("analyses/plots/preds_vs_actuals.png", width = 8, height = 5)
-
-# calibration plot
-bin_breaks <- seq(min(c(0, final_y_hats)), 
-                  max(final_y_hats),
-                  by = 50)
-final_preds %>% 
-  mutate(y_hat_binned = cut(y_hat, breaks = bin_breaks)) %>%
-  left_join(tibble(bin_label = bin_breaks,
-                   y_hat_binned = cut(bin_label, breaks = bin_breaks)),
-            by = 'y_hat_binned') %>% 
-  ggplot(aes(x = bin_label, y = y, group = bin_label)) +
-  geom_boxplot() +
-  scale_x_continuous(breaks = bin_breaks, labels = scales::comma_format()) +
-  scale_y_log10(labels = scales::comma_format(1)) +
-  labs(title = "Calibration: Actual upvotes vs. predicted",
-       x = "Midpoint of binned predictions",
-       y = "Actual upvotes") +
-  theme(axis.text.x = element_text(angle = -55))
-# ggsave("analyses/plots/calibration.png", width = 8, height = 5)
-
-# precision at k
-precision_at_k(comments_test$score, final_y_hats) %>% 
-  # filter(rank > 100) %>%
-  ggplot(aes(x = k, y = precision)) +
-  geom_line() +
-  scale_x_continuous(labels = scales::comma_format()) +
-  labs(title = "Precision-at-k of final model",
-       x = 'Predictions ranked by value (k)',
-       y = 'Precision',
-       color = NULL) +
-  theme(legend.position = 'bottom')
-# ggsave("analyses/plots/precision_xgb.png", width = 8, height = 6)
+# # final RMSE
+# final_y_hats <- predict(model_rf, data = comments_test)$predictions
+# final_RMSE <- RMSE(comments_test$score, final_y_hats)
+# 
+# # plot distribution of scores
+# enframe(final_y_hats) %>% 
+#   ggplot(aes(x = value)) +
+#   geom_histogram(color = 'white', bins = 100) +
+#   labs(title = "Distribution of test predictions from final model",
+#        x = 'Upvotes',
+#        y = 'n')
+# # ggsave("analyses/plots/final_preds.png", width = 8, height = 5)
+# 
+# # plot preds against actuals
+# final_preds <- tibble(y = comments_test$score,
+#                       y_hat = final_y_hats)
+# final_preds %>% 
+#   ggplot(aes(x = y, y = y_hat)) +
+#   geom_point(alpha = 0.3) +
+#   geom_abline(color = 'grey40', linetype = 'dashed') +
+#   scale_x_log10(labels = scales::comma_format(1)) +
+#   scale_y_log10(labels = scales::comma_format(1)) +
+#   labs(title = "Final model: test set predictions vs. actuals",
+#        subtitle = paste0("RMSE: ", round(final_RMSE, 1)),
+#        x = "Actual upvotes",
+#        y = "Predicted upvotes")
+# # ggsave("analyses/plots/preds_vs_actuals.png", width = 8, height = 5)
+# 
+# # calibration plot
+# bin_breaks <- seq(min(c(0, final_y_hats)), 
+#                   max(final_y_hats),
+#                   by = 50)
+# final_preds %>% 
+#   mutate(y_hat_binned = cut(y_hat, breaks = bin_breaks)) %>%
+#   left_join(tibble(bin_label = bin_breaks,
+#                    y_hat_binned = cut(bin_label, breaks = bin_breaks)),
+#             by = 'y_hat_binned') %>% 
+#   ggplot(aes(x = bin_label, y = y, group = bin_label)) +
+#   geom_boxplot() +
+#   scale_x_continuous(breaks = bin_breaks, labels = scales::comma_format()) +
+#   scale_y_log10(labels = scales::comma_format(1)) +
+#   labs(title = "Calibration: Actual upvotes vs. predicted",
+#        x = "Midpoint of binned predictions",
+#        y = "Actual upvotes") +
+#   theme(axis.text.x = element_text(angle = -55))
+# # ggsave("analyses/plots/calibration.png", width = 8, height = 5)
+# 
+# # precision at k
+# precision_at_k(comments_test$score, final_y_hats) %>% 
+#   # filter(rank > 100) %>%
+#   ggplot(aes(x = k, y = precision)) +
+#   geom_line() +
+#   scale_x_continuous(labels = scales::comma_format()) +
+#   labs(title = "Precision-at-k of final model",
+#        x = 'Predictions ranked by value (k)',
+#        y = 'Precision',
+#        color = NULL) +
+#   theme(legend.position = 'bottom')
+# # ggsave("analyses/plots/precision_xgb.png", width = 8, height = 6)
 
 
 # key variables -----------------------------------------------------------
