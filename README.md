@@ -36,9 +36,10 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
 To reproduce, run the scripts in the following order:  
 1. `inputs/scrape_WBS.R`  
 2. `data/cleaning.R`  
-3.  Topic modeling and sentiment  
+3.  Features: 
     1. `analyses/topic_modeling.R`  
     2. `analyses/sentiment_scoring.py`  
+    3. `analyses/comment_hierarchy.R`  
 4. `analyses/feature_engineering.R`  
 5. `analyses/feature_selection.R`  
 6. `analyses/create_train_test_split.R`
