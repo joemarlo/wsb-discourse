@@ -11,7 +11,7 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
 
 <br>
 <p align="center">
-<img src="analyses/plots/lasso_features.png" width=80%>
+<img src="analyses/plots/importance_lasso_content.png" width=80%>
 </p>
 
 <br>
