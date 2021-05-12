@@ -198,7 +198,7 @@ precision_at_k <- function(y, y_hat){
   # calculate precision
   precision <- sapply(seq_along(ranked_preds$rank_y_hat), function(i){
     sliced_tbl <- ranked_preds[1:i,]
-    prop_y <- mean(sliced_tbl$y <= i)
+    prop_y <- mean(sliced_tbl$rank_y <= i)
     return(prop_y)
   }) %>% 
     enframe() %>% 
@@ -207,20 +207,19 @@ precision_at_k <- function(y, y_hat){
   return(precision)
 }
 
+# calculate precision for each model
 precisions_df <- map2_dfr(y_hats, y_names, function(y_hat, y_name){
   precision <- precision_at_k(comments_validate$score, y_hat)
   precision$model <- y_name
   return(precision)
 })
 
+# plot precision
 precisions_df %>% 
   ggplot(aes(x = k, y = precision, color = model)) +
   geom_line() +
-  scale_x_continuous(labels = scales::comma_format(),
-                     limits = c(0, 1000)) +
+  scale_x_continuous(labels = scales::comma_format()) +
   labs(title = "Precision-at-k for each model on the validation set",
-       subtitle = 'Only 1,000 highest ranked predictions shown',
-       caption = "Decision tree predictions are invariant",
        x = 'Predictions ranked by value (k)',
        y = 'Precision',
        color = NULL) +
