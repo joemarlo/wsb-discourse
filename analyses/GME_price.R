@@ -24,8 +24,8 @@ GME_price %>%
   filter(date <= as.Date('2021-04-15')) %>% 
   ggplot(aes(x = date, y = close)) +
   geom_candlestick(aes(open = open, high = high, low = low, close = close),
-                   colour_up = 'grey30', colour_down = 'grey30',
-                   fill_up = 'grey70', fill_down = 'grey70') +
+                   colour_up = 'grey60', colour_down = 'grey60',
+                   fill_up = 'grey50', fill_down = 'grey50') +
   geom_vline(xintercept = as.Date('2021-02-18'), 
              color = 'grey50', linetype = 'dashed') +
   geom_text(data = key_dates, aes(x = date, y = y, label = label), 
