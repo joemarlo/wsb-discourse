@@ -1,9 +1,9 @@
-# Topic Modeling
-
 library(tidyverse)
 library(tidytext)
 library(topicmodels)
 library(ldatuning)
+source('analyses/helpers.R')
+source('analyses/plots/ggplot_settings.R')
 
 # Read in cleaned comments data:
 data <- read.csv('data/comments_cleaned.csv')
@@ -18,7 +18,7 @@ comments <- data %>% select(id_comment, comment_text)
   tokens_cmt <- as_tibble(anti_join(tokens_cmt, stop_words, by = "word"))
   
   # Count the occurences of each word in each document (comment):
-  tokens_cmt <-tokens_cmt %>% group_by(id_comment, word) %>% summarise(count = n())
+  tokens_cmt <- tokens_cmt %>% group_by(id_comment, word) %>% summarise(count = n())
   
   tokens_cmt %>% count(word, sort = T)
 
@@ -37,13 +37,18 @@ comments_lda <- LDA(tokens_dtm, k = 5, control = list(seed = 1234))
 
   # Plot top 10 terms in each topic:
  plot_5 <- top_terms %>%
-    mutate(term = reorder(term, beta)) %>%
-    ggplot(aes(term, beta, fill = factor(topic))) +
+    mutate(topic = paste0("Topic ", topic),
+           term = tidytext::reorder_within(term, beta, topic)) %>%
+    ggplot(aes(x = term, y = beta, fill = factor(topic))) +
     geom_bar(alpha = 0.8, stat = "identity", show.legend = FALSE) +
+    scale_x_reordered() +
     facet_wrap(~ topic, scales = "free", ncol = 2) +
-    coord_flip()
+    coord_flip() +
+    labs(title = "Topics derived from Latent Dirichlet Allocation",
+         x = NULL,
+         y = NULL)
  
- ggsave(plot_5, file = 'analyses/plots/topics_5.png')
+ ggsave(plot_5, file = 'analyses/plots/topics_5.png', width = 8, height = 7)
   
 
 # Topic Assignments for each comment:

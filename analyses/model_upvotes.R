@@ -251,86 +251,86 @@ map(y_hats, function(y_hat) comments_validate$score - y_hat) %>%
 
 # final model -------------------------------------------------------------
 
-# # final RMSE
-# final_y_hats <- predict(model_rf, data = comments_test)$predictions
-# final_RMSE <- RMSE(comments_test$score, final_y_hats)
-# 
-# # plot distribution of scores
-# enframe(final_y_hats) %>% 
-#   ggplot(aes(x = value)) +
-#   geom_histogram(color = 'white', bins = 100) +
-#   labs(title = "Distribution of test predictions from final model",
-#        x = 'Upvotes',
-#        y = 'n')
-# # ggsave("analyses/plots/final_preds.png", width = 8, height = 5)
-# 
-# # plot preds against actuals
-# final_preds <- tibble(y = comments_test$score,
-#                       y_hat = final_y_hats)
-# final_preds %>% 
-#   ggplot(aes(x = y, y = y_hat)) +
-#   geom_point(alpha = 0.3) +
-#   geom_abline(color = 'grey40', linetype = 'dashed') +
-#   scale_x_log10(labels = scales::comma_format(1)) +
-#   scale_y_log10(labels = scales::comma_format(1)) +
-#   labs(title = "Final model: test set predictions vs. actuals",
-#        subtitle = paste0("RMSE: ", round(final_RMSE, 1)),
-#        x = "Actual upvotes",
-#        y = "Predicted upvotes")
-# # ggsave("analyses/plots/preds_vs_actuals.png", width = 8, height = 5)
-# 
-# # calibration plot
-# bin_breaks <- seq(min(c(0, final_y_hats)), 
-#                   max(final_y_hats),
-#                   by = 50)
-# final_preds %>% 
-#   mutate(y_hat_binned = cut(y_hat, breaks = bin_breaks)) %>%
-#   left_join(tibble(bin_label = bin_breaks,
-#                    y_hat_binned = cut(bin_label, breaks = bin_breaks)),
-#             by = 'y_hat_binned') %>% 
-#   ggplot(aes(x = bin_label, y = y, group = bin_label)) +
-#   geom_boxplot() +
-#   scale_x_continuous(breaks = bin_breaks, labels = scales::comma_format()) +
-#   scale_y_log10(labels = scales::comma_format(1)) +
-#   labs(title = "Calibration: Actual upvotes vs. predicted",
-#        x = "Midpoint of binned predictions",
-#        y = "Actual upvotes") +
-#   theme(axis.text.x = element_text(angle = -55))
-# # ggsave("analyses/plots/calibration.png", width = 8, height = 5)
-# 
-# # precision at k
-# precision_at_k(comments_test$score, final_y_hats) %>% 
-#   # filter(rank > 100) %>%
-#   ggplot(aes(x = k, y = precision)) +
-#   geom_line() +
-#   scale_x_continuous(labels = scales::comma_format()) +
-#   labs(title = "Precision-at-k of final model",
-#        x = 'Predictions ranked by value (k)',
-#        y = 'Precision',
-#        color = NULL) +
-#   theme(legend.position = 'bottom')
-# # ggsave("analyses/plots/precision_xgb.png", width = 8, height = 6)
+# final RMSE
+final_y_hats <- predict(model_rf, data = comments_test)$predictions
+final_RMSE <- RMSE(comments_test$score, final_y_hats)
+
+# plot distribution of scores
+enframe(final_y_hats) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(color = 'white', bins = 100) +
+  labs(title = "Distribution of test predictions from final model",
+       x = 'Upvotes',
+       y = 'n')
+# ggsave("analyses/plots/final_preds.png", width = 8, height = 5)
+
+# plot preds against actuals
+final_preds <- tibble(y = comments_test$score,
+                      y_hat = final_y_hats)
+final_preds %>%
+  ggplot(aes(x = y, y = y_hat)) +
+  geom_point(alpha = 0.3) +
+  geom_abline(color = 'grey40', linetype = 'dashed') +
+  scale_x_log10(labels = scales::comma_format(1)) +
+  scale_y_log10(labels = scales::comma_format(1)) +
+  labs(title = "Final model: test set predictions vs. actuals",
+       subtitle = paste0("RMSE: ", round(final_RMSE, 1)),
+       x = "Actual upvotes",
+       y = "Predicted upvotes")
+# ggsave("analyses/plots/preds_vs_actuals.png", width = 8, height = 5)
+
+# calibration plot
+bin_breaks <- seq(min(c(0, final_y_hats)),
+                  max(final_y_hats),
+                  by = 50)
+final_preds %>%
+  mutate(y_hat_binned = cut(y_hat, breaks = bin_breaks)) %>%
+  left_join(tibble(bin_label = bin_breaks,
+                   y_hat_binned = cut(bin_label, breaks = bin_breaks)),
+            by = 'y_hat_binned') %>%
+  ggplot(aes(x = bin_label, y = y, group = bin_label)) +
+  geom_boxplot() +
+  scale_x_continuous(breaks = bin_breaks, labels = scales::comma_format()) +
+  scale_y_log10(labels = scales::comma_format(1)) +
+  labs(title = "Calibration: Actual upvotes vs. predicted",
+       x = "Midpoint of binned predictions",
+       y = "Actual upvotes") +
+  theme(axis.text.x = element_text(angle = -55))
+# ggsave("analyses/plots/calibration.png", width = 8, height = 5)
+
+# precision at k
+precision_at_k(comments_test$score, final_y_hats) %>%
+  # filter(rank > 100) %>%
+  ggplot(aes(x = k, y = precision)) +
+  geom_line() +
+  scale_x_continuous(labels = scales::comma_format()) +
+  labs(title = "Precision-at-k of final model",
+       x = 'Predictions ranked by value (k)',
+       y = 'Precision',
+       color = NULL) +
+  theme(legend.position = 'bottom')
+# ggsave("analyses/plots/precision_rf.png", width = 8, height = 6)
 
 
 # key variables -----------------------------------------------------------
 
 # variable importance
-xgboost::xgb.importance(model = model_xgb) %>% 
-  tibble() %>% 
-  filter(str_detect(Feature, "^(sentiment)|(keyphrase)|(top_bigram)")) %>% 
-  ggplot(aes(x = Gain, y = reorder(Feature, Gain))) +
+model_rf$variable.importance %>% 
+  enframe() %>% 
+  filter(str_detect(name, "^(sentiment)|(keyphrase)|(top_bigram)|(topic)")) %>% 
+  ggplot(aes(x = value, y = reorder(name, value))) +
   geom_col() +
   scale_x_continuous(labels = NULL) +
   labs(title = "Comment content by feature importance",
-       subtitle = 'XGBoost model',
+       subtitle = 'Random forest model',
        x = "Importance",
        y = NULL)
-# ggsave("analyses/plots/importance_xgb_content.png", width = 8, height = 4)
+# ggsave("analyses/plots/importance_rf_content.png", width = 8, height = 6)
 
 # lasso features
 lasso_features <- read_csv("data/lasso_features.csv")
 lasso_features %>% 
-  filter(str_detect(term, "^(sentiment)|(keyphrase)|(top_bigram)")) %>% 
+  filter(str_detect(term, "^(sentiment)|(keyphrase)|(top_bigram)|(topic)")) %>% 
   ggplot(aes(x = estimate, y = reorder(term, estimate))) +
   geom_vline(xintercept = 0, linetype = 'dashed', color = 'grey50') +
   geom_col() +
