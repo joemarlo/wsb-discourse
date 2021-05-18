@@ -27,8 +27,7 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
     │   └── plots         # Plots
     ├── data              # Cleaned data and cleaning scripts
     ├── inputs            # Raw input data and scraping scripts
-    ├── material          # Class material (check-ins, final writeup, presentation)
-    ├── LICENSE
+    ├── material          # Class material (proposal and paper)
     └── README.md
 
 
@@ -36,7 +35,7 @@ Final project for NYU Messy Data and Machine Learning class. Contains explicit l
 To reproduce, run the scripts in the following order:  
 1. `inputs/scrape_WBS.R`  
 2. `data/cleaning.R`  
-3.  Features: 
+3.  Features:
     1. `analyses/topic_modeling.R`  
     2. `analyses/sentiment_scoring.py`  
     3. `analyses/GME_price.R`  
